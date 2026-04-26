@@ -101,6 +101,157 @@ pub(crate) fn ensure_symlink(steam_path: &str, workshop_id: &str) -> Result<(), 
         .map_err(|e| format!("symlink-failed: {}: {}", workshop_id, e))
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinParams {
+    pub ip: String,
+    pub game_port: u16,
+    pub mods: Vec<ModRef>,
+    pub steam_path: String,
+    pub player_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinProgress {
+    pub step: String,
+    pub detail: Option<String>,
+    pub current: u32,
+    pub total: u32,
+}
+
+fn emit_progress(
+    app: &tauri::AppHandle,
+    step: &str,
+    detail: Option<&str>,
+    current: u32,
+    total: u32,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    app.emit(
+        "join-progress",
+        JoinProgress {
+            step: step.to_string(),
+            detail: detail.map(String::from),
+            current,
+            total,
+        },
+    )
+    .map_err(|e| e.to_string())
+}
+
+async fn run_steamcmd(workshop_id: &str) -> Result<(), String> {
+    use tokio::io::AsyncBufReadExt;
+
+    let mut child = tokio::process::Command::new("steamcmd")
+        .args([
+            "+@ShutdownOnFailedCommand",
+            "1",
+            "+login",
+            "anonymous",
+            "+workshop_download_item",
+            "221100",
+            workshop_id,
+            "validate",
+            "+quit",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|_| "steamcmd-not-found: steamcmd is not installed or not on PATH".to_string())?;
+
+    if let Some(stdout) = child.stdout.take() {
+        let mut lines = tokio::io::BufReader::new(stdout).lines();
+        while let Ok(Some(_)) = lines.next_line().await {}
+    }
+
+    let status = child.wait().await.map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!(
+            "steamcmd-failed: {} (workshop_id: {})",
+            status.code().unwrap_or(-1),
+            workshop_id
+        ));
+    }
+    Ok(())
+}
+
+fn launch_dayz(params: &JoinParams) -> Result<(), String> {
+    let mod_string = params
+        .mods
+        .iter()
+        .map(|m| format!("@{}", m.workshop_id))
+        .collect::<Vec<_>>()
+        .join(";");
+
+    let mut args = vec![
+        "-applaunch".to_string(),
+        "221100".to_string(),
+        "-nolauncher".to_string(),
+        format!("-name={}", params.player_name),
+        format!("-connect={}", params.ip),
+        format!("-port={}", params.game_port),
+    ];
+
+    if !mod_string.is_empty() {
+        args.push(format!("-mod={}", mod_string));
+    }
+
+    std::process::Command::new("steam")
+        .args(&args)
+        .spawn()
+        .map_err(|e| format!("launch-failed: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn join_server(app: tauri::AppHandle, params: JoinParams) -> Result<(), String> {
+    let missing: Vec<&ModRef> = params
+        .mods
+        .iter()
+        .filter(|m| {
+            !std::path::Path::new(&format!(
+                "{}/workshop/content/221100/{}",
+                params.steam_path, m.workshop_id
+            ))
+            .is_dir()
+        })
+        .collect();
+
+    let total = missing.len() as u32;
+    for (i, m) in missing.iter().enumerate() {
+        emit_progress(&app, "downloading", Some(&m.name), i as u32 + 1, total)?;
+        run_steamcmd(&m.workshop_id).await.map_err(|e| {
+            let _ = emit_progress(&app, "error", Some(&e), 0, 0);
+            e
+        })?;
+    }
+
+    let mod_total = params.mods.len() as u32;
+    for (i, m) in params.mods.iter().enumerate() {
+        emit_progress(
+            &app,
+            "creating-symlinks",
+            Some(&m.name),
+            i as u32 + 1,
+            mod_total,
+        )?;
+        ensure_symlink(&params.steam_path, &m.workshop_id).map_err(|e| {
+            let _ = emit_progress(&app, "error", Some(&e), 0, 0);
+            e
+        })?;
+    }
+
+    emit_progress(&app, "launching", None, 0, 0)?;
+    launch_dayz(&params).map_err(|e| {
+        let _ = emit_progress(&app, "error", Some(&e), 0, 0);
+        e
+    })?;
+
+    emit_progress(&app, "done", None, 0, 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
