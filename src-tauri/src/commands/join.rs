@@ -39,6 +39,43 @@ pub(crate) fn missing_mods(steam_path: &str, mods: &[ModRef]) -> Vec<ModRef> {
         .collect()
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinRequirements {
+    pub steam_path: Option<String>,
+    pub missing_mods: Vec<ModRef>,
+    pub player_name_needed: bool,
+    pub player_name: Option<String>,
+}
+
+pub(crate) fn check_requirements_logic(
+    stored_steam_path: Option<String>,
+    stored_player_name: Option<String>,
+    mods: &[ModRef],
+) -> JoinRequirements {
+    let steam_path = stored_steam_path
+        .filter(|p| std::path::Path::new(p).is_dir())
+        .or_else(detect_steam_path);
+
+    let missing = steam_path
+        .as_deref()
+        .map(|p| missing_mods(p, mods))
+        .unwrap_or_default();
+
+    JoinRequirements {
+        steam_path,
+        missing_mods: missing,
+        player_name_needed: stored_player_name.is_none(),
+        player_name: stored_player_name,
+    }
+}
+
+#[tauri::command]
+pub fn check_join_requirements(app: tauri::AppHandle, mods: Vec<ModRef>) -> JoinRequirements {
+    let config = crate::commands::config::read_config(&app);
+    check_requirements_logic(config.steam_path, config.player_name, &mods)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,6 +150,50 @@ mod tests {
             },
         ];
         assert!(missing_mods(base.to_str().unwrap(), &mods).is_empty());
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn check_requirements_logic_finds_missing_and_flags_player_name() {
+        let base = tmp_dir("crl");
+        fs::create_dir_all(base.join("workshop/content/221100/100")).unwrap();
+
+        let mods = vec![
+            ModRef {
+                workshop_id: "100".into(),
+                name: "Present".into(),
+            },
+            ModRef {
+                workshop_id: "200".into(),
+                name: "Missing".into(),
+            },
+        ];
+
+        let result = check_requirements_logic(
+            Some(base.to_str().unwrap().to_string()),
+            None, // no player name
+            &mods,
+        );
+
+        assert_eq!(result.steam_path, Some(base.to_str().unwrap().to_string()));
+        assert_eq!(result.missing_mods.len(), 1);
+        assert_eq!(result.missing_mods[0].workshop_id, "200");
+        assert!(result.player_name_needed);
+        assert!(result.player_name.is_none());
+
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn check_requirements_logic_returns_player_name_when_set() {
+        let base = tmp_dir("crl2");
+        let result = check_requirements_logic(
+            Some(base.to_str().unwrap().to_string()),
+            Some("Survivor".into()),
+            &[],
+        );
+        assert!(!result.player_name_needed);
+        assert_eq!(result.player_name, Some("Survivor".into()));
         fs::remove_dir_all(&base).unwrap();
     }
 }

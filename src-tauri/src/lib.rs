@@ -15,6 +15,7 @@ pub fn run() {
             commands::config::get_config,
             commands::config::set_steam_path,
             commands::config::set_player_name,
+            commands::join::check_join_requirements,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
