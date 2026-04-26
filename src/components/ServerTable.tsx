@@ -250,7 +250,8 @@ export function ServerTable({
                             });
                         }
                       }}
-                      className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md text-secondary border border-trim/40 hover:border-trim hover:text-primary transition-all cursor-pointer"
+                      disabled={refreshingIds.has(id)}
+                      className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md text-secondary border border-trim/40 hover:border-trim hover:text-primary transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <svg
                         width="12"
