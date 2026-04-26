@@ -17,6 +17,8 @@ pub fn run() {
             commands::config::set_player_name,
             commands::join::check_join_requirements,
             commands::join::join_server,
+            commands::mods::list_mods,
+            commands::mods::delete_mod,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
