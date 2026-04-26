@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Server } from "../types/server";
 import type { SortKey, SortDir } from "../hooks/useFilters";
@@ -13,6 +13,7 @@ interface Props {
   sortKey: SortKey;
   sortDir: SortDir;
   onSort: (key: SortKey) => void;
+  onRefresh: (ip: string, port: number) => Promise<void>;
 }
 
 function StarIcon({ filled }: { filled: boolean }) {
@@ -89,14 +90,22 @@ export function ServerTable({
   sortKey,
   sortDir,
   onSort,
+  onRefresh,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
-  // Reset scroll to top after every list change so the virtualizer doesn't
-  // compute a virtual window at a stale offset when the list shrinks.
+  // Reset scroll to top when the row count changes (filter applied, initial
+  // load) so the virtualizer doesn't compute against a stale offset. Per-server
+  // data patches leave the count unchanged and must not reset scroll.
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [servers]);
+  }, [servers.length]);
 
   const virtualizer = useVirtualizer({
     count: servers.length,
@@ -123,7 +132,7 @@ export function ServerTable({
           <col style={{ width: 80 }} />
           <col style={{ width: 64 }} />
           <col style={{ width: 64 }} />
-          <col style={{ width: 80 }} />
+          <col style={{ width: 96 }} />
         </colgroup>
 
         <thead className="sticky top-0 z-10 bg-surface">
@@ -223,12 +232,49 @@ export function ServerTable({
                 </td>
 
                 <td className="px-2 py-2 border-b border-trim/40">
-                  <button
-                    className="opacity-0 group-hover:opacity-100 w-full px-2.5 py-1 rounded-md text-xs font-semibold bg-accent/10 text-accent border border-accent/25 hover:bg-accent/20 transition-all cursor-pointer"
-                    title="Join server"
-                  >
-                    Join
-                  </button>
+                  <div className="flex items-center gap-1 justify-end">
+                    <button
+                      aria-label={`Refresh ${server.name}`}
+                      title="Refresh server"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRefreshingIds((prev) => new Set(prev).add(id));
+                        try {
+                          await onRefresh(server.endpoint.ip, server.endpoint.port);
+                        } finally {
+                          if (mountedRef.current)
+                            setRefreshingIds((prev) => {
+                              const next = new Set(prev);
+                              next.delete(id);
+                              return next;
+                            });
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md text-secondary border border-trim/40 hover:border-trim hover:text-primary transition-all cursor-pointer"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={refreshingIds.has(id) ? "animate-spin" : ""}
+                      >
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                      </svg>
+                    </button>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 px-2.5 py-1 rounded-md text-xs font-semibold bg-accent/10 text-accent border border-accent/25 hover:bg-accent/20 transition-all cursor-pointer"
+                      title="Join server"
+                      aria-label={`Join ${server.name}`}
+                    >
+                      Join
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

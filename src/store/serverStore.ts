@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Server } from "../types/server";
-import { fetchServers as fetchServersApi } from "../api/dzsa";
+import { fetchServers as fetchServersApi, fetchServer as fetchServerApi } from "../api/dzsa";
 
 export function deduplicateServers(servers: Server[]): Server[] {
   const seen = new Set<string>();
@@ -49,13 +49,15 @@ interface ServerStore {
   refreshing: boolean;
   error: string | null;
   fetchServers: () => Promise<void>;
+  forceRefresh: () => Promise<void>;
+  refreshServer: (ip: string, port: number) => Promise<void>;
 }
 
 // Prevents concurrent fetches (e.g. React StrictMode double-effect) from
 // racing against each other and doubling the window for the filter race.
 let fetchInFlight = false;
 
-export const useServerStore = create<ServerStore>((set) => ({
+export const useServerStore = create<ServerStore>((set, get) => ({
   servers: [],
   loading: false,
   refreshing: false,
@@ -89,4 +91,32 @@ export const useServerStore = create<ServerStore>((set) => ({
       fetchInFlight = false;
     }
   },
+  forceRefresh: async () => {
+    if (!fetchInFlight) {
+      try {
+        localStorage.removeItem(CACHE_KEY);
+      } catch {
+        // localStorage unavailable — proceed anyway
+      }
+    }
+    await get().fetchServers();
+  },
+  refreshServer: async (ip: string, port: number) => {
+    try {
+      const fresh = await fetchServerApi(ip, port);
+      set((state) => ({
+        servers: state.servers.map((s) =>
+          s.endpoint.ip === ip && s.endpoint.port === port ? fresh : s,
+        ),
+      }));
+    } catch (e) {
+      console.warn(`[refreshServer] ${ip}:${port} —`, e);
+      // Leave existing data intact — no crash, no fallback fetch
+    }
+  },
 }));
+
+/** @internal Test-only — resets the fetchInFlight guard between tests. */
+export function _resetFetchGuard() {
+  fetchInFlight = false;
+}

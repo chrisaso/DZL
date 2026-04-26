@@ -37,3 +37,7 @@ export interface ServersResponse {
   status: number;
   result: Server[];
 }
+
+export interface ServerQueryResponse {
+  result: Server;
+}
