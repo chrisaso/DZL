@@ -207,17 +207,7 @@ fn launch_dayz(params: &JoinParams) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn join_server(app: tauri::AppHandle, params: JoinParams) -> Result<(), String> {
-    let missing: Vec<&ModRef> = params
-        .mods
-        .iter()
-        .filter(|m| {
-            !std::path::Path::new(&format!(
-                "{}/workshop/content/221100/{}",
-                params.steam_path, m.workshop_id
-            ))
-            .is_dir()
-        })
-        .collect();
+    let missing = missing_mods(&params.steam_path, &params.mods);
 
     let total = missing.len() as u32;
     for (i, m) in missing.iter().enumerate() {
