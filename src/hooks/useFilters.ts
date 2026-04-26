@@ -8,8 +8,12 @@ export interface Filters {
   favoritesOnly: boolean;
   hideFull: boolean;
   hideEmpty: boolean;
-  passwordProtected: boolean;
+  firstPersonOnly: boolean;
+  thirdPersonOnly: boolean;
   moddedOnly: boolean;
+  battlEyeOnly: boolean;
+  vacOnly: boolean;
+  passwordProtected: boolean;
 }
 
 export type SortKey = "name" | "map" | "players" | "time";
@@ -22,8 +26,12 @@ const DEFAULT_FILTERS: Filters = {
   favoritesOnly: false,
   hideFull: false,
   hideEmpty: false,
-  passwordProtected: false,
+  firstPersonOnly: false,
+  thirdPersonOnly: false,
   moddedOnly: false,
+  battlEyeOnly: false,
+  vacOnly: false,
+  passwordProtected: false,
 };
 
 export function useFilters(servers: Server[], favorites: Set<string>) {
@@ -70,11 +78,23 @@ export function useFilters(servers: Server[], favorites: Set<string>) {
     if (filters.hideEmpty) {
       result = result.filter((s) => s.players > 0);
     }
-    if (filters.passwordProtected) {
-      result = result.filter((s) => s.password);
+    if (filters.firstPersonOnly) {
+      result = result.filter((s) => s.firstPersonOnly);
+    }
+    if (filters.thirdPersonOnly) {
+      result = result.filter((s) => !s.firstPersonOnly);
     }
     if (filters.moddedOnly) {
       result = result.filter((s) => s.mods.length > 0);
+    }
+    if (filters.battlEyeOnly) {
+      result = result.filter((s) => s.battlEye);
+    }
+    if (filters.vacOnly) {
+      result = result.filter((s) => s.vac);
+    }
+    if (filters.passwordProtected) {
+      result = result.filter((s) => s.password);
     }
 
     return [...result].sort((a, b) => {

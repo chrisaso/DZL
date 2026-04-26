@@ -109,9 +109,19 @@ export function Sidebar({
           <Label>Options</Label>
           <div className="space-y-2.5">
             <CheckRow
-              label="Favourites only"
+              label="Favourites"
               checked={filters.favoritesOnly}
               onChange={(v) => updateFilter("favoritesOnly", v)}
+            />
+            <CheckRow
+              label="First person"
+              checked={filters.firstPersonOnly}
+              onChange={(v) => updateFilter("firstPersonOnly", v)}
+            />
+            <CheckRow
+              label="Third person"
+              checked={filters.thirdPersonOnly}
+              onChange={(v) => updateFilter("thirdPersonOnly", v)}
             />
             <CheckRow
               label="Hide full servers"
@@ -124,14 +134,24 @@ export function Sidebar({
               onChange={(v) => updateFilter("hideEmpty", v)}
             />
             <CheckRow
+              label="Modded"
+              checked={filters.moddedOnly}
+              onChange={(v) => updateFilter("moddedOnly", v)}
+            />
+            <CheckRow
+              label="BattlEye"
+              checked={filters.battlEyeOnly}
+              onChange={(v) => updateFilter("battlEyeOnly", v)}
+            />
+            <CheckRow
+              label="VAC"
+              checked={filters.vacOnly}
+              onChange={(v) => updateFilter("vacOnly", v)}
+            />
+            <CheckRow
               label="Password protected"
               checked={filters.passwordProtected}
               onChange={(v) => updateFilter("passwordProtected", v)}
-            />
-            <CheckRow
-              label="Modded only"
-              checked={filters.moddedOnly}
-              onChange={(v) => updateFilter("moddedOnly", v)}
             />
           </div>
         </div>
