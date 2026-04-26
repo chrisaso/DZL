@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import type { Server } from "../types/server";
 
 export interface Filters {
@@ -31,6 +31,11 @@ export function useFilters(servers: Server[], favorites: Set<string>) {
   const [sortKey, setSortKey] = useState<SortKey>("players");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
+  // Updated synchronously in updateFilter/resetFilters so that useMemo reads
+  // the correct search string even when Zustand's useSyncExternalStore forces a
+  // re-render before React has committed the setFilters update.
+  const searchRef = useRef(DEFAULT_FILTERS.search);
+
   const maps = useMemo(
     () => [...new Set(servers.map((s) => s.map))].sort(),
     [servers],
@@ -44,8 +49,8 @@ export function useFilters(servers: Server[], favorites: Set<string>) {
   const filtered = useMemo(() => {
     let result = servers;
 
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
+    if (searchRef.current) {
+      const q = searchRef.current.toLowerCase();
       result = result.filter((s) => s.name.toLowerCase().includes(q));
     }
     if (filters.map) {
@@ -96,6 +101,7 @@ export function useFilters(servers: Server[], favorites: Set<string>) {
   }, [servers, filters, favorites, sortKey, sortDir]);
 
   function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    if (key === "search") searchRef.current = value as string;
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -109,6 +115,7 @@ export function useFilters(servers: Server[], favorites: Set<string>) {
   }
 
   function resetFilters() {
+    searchRef.current = DEFAULT_FILTERS.search;
     setFilters(DEFAULT_FILTERS);
   }
 
