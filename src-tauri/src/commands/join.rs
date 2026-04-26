@@ -76,6 +76,31 @@ pub fn check_join_requirements(app: tauri::AppHandle, mods: Vec<ModRef>) -> Join
     check_requirements_logic(config.steam_path, config.player_name, &mods)
 }
 
+pub(crate) fn ensure_symlink(steam_path: &str, workshop_id: &str) -> Result<(), String> {
+    let target = std::path::PathBuf::from(format!(
+        "{}/workshop/content/221100/{}",
+        steam_path, workshop_id
+    ));
+    let link = std::path::PathBuf::from(format!("{}/common/DayZ/@{}", steam_path, workshop_id));
+
+    // Check if symlink already exists (use symlink_metadata to detect broken symlinks too)
+    if link.symlink_metadata().is_ok() {
+        if std::fs::read_link(&link).ok().as_deref() == Some(&target) {
+            return Ok(()); // already correct
+        }
+        std::fs::remove_file(&link)
+            .map_err(|e| format!("symlink-failed: {}: {}", workshop_id, e))?;
+    }
+
+    if let Some(parent) = link.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("symlink-failed: {}: {}", workshop_id, e))?;
+    }
+
+    std::os::unix::fs::symlink(&target, &link)
+        .map_err(|e| format!("symlink-failed: {}: {}", workshop_id, e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,6 +219,49 @@ mod tests {
         );
         assert!(!result.player_name_needed);
         assert_eq!(result.player_name, Some("Survivor".into()));
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn ensure_symlink_creates_symlink() {
+        let base = tmp_dir("sl");
+        let target_dir = base.join("workshop/content/221100/999");
+        fs::create_dir_all(&target_dir).unwrap();
+
+        ensure_symlink(base.to_str().unwrap(), "999").unwrap();
+
+        let link = base.join("common/DayZ/@999");
+        assert!(link.exists());
+        assert_eq!(fs::read_link(&link).unwrap(), target_dir);
+
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn ensure_symlink_is_idempotent() {
+        let base = tmp_dir("sl2");
+        let target_dir = base.join("workshop/content/221100/888");
+        fs::create_dir_all(&target_dir).unwrap();
+
+        ensure_symlink(base.to_str().unwrap(), "888").unwrap();
+        ensure_symlink(base.to_str().unwrap(), "888").unwrap(); // second call must not error
+
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn ensure_symlink_replaces_stale_symlink() {
+        let base = tmp_dir("sl3");
+        let target_dir = base.join("workshop/content/221100/777");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(base.join("common/DayZ")).unwrap();
+
+        let link_path = base.join("common/DayZ/@777");
+        std::os::unix::fs::symlink("/totally/wrong/path", &link_path).unwrap();
+
+        ensure_symlink(base.to_str().unwrap(), "777").unwrap();
+        assert_eq!(fs::read_link(&link_path).unwrap(), target_dir);
+
         fs::remove_dir_all(&base).unwrap();
     }
 }
