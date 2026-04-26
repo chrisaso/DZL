@@ -11,11 +11,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
-        greet,
-        commands::config::get_config,
-        commands::config::set_steam_path,
-        commands::config::set_player_name,
-    ])
+            greet,
+            commands::config::get_config,
+            commands::config::set_steam_path,
+            commands::config::set_player_name,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
