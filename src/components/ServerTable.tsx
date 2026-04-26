@@ -174,7 +174,7 @@ export function ServerTable({
 
             return (
               <tr
-                key={id}
+                key={`${id}-${virtualItem.index}`}
                 data-selected={isSelected}
                 className="server-row group"
                 onClick={() => onSelect(id)}

@@ -2,6 +2,16 @@ import { create } from "zustand";
 import type { Server } from "../types/server";
 import { fetchServers as fetchServersApi } from "../api/dzsa";
 
+export function deduplicateServers(servers: Server[]): Server[] {
+  const seen = new Set<string>();
+  return servers.filter((s) => {
+    const id = `${s.endpoint.ip}:${s.endpoint.port}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 const CACHE_KEY = "zed-server-cache";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -69,7 +79,8 @@ export const useServerStore = create<ServerStore>((set) => ({
     // No cache — full blocking load, single set after fetch.
     set({ loading: true, error: null });
     try {
-      const servers = await fetchServersApi();
+      const raw = await fetchServersApi();
+      const servers = deduplicateServers(raw);
       set({ servers, loading: false });
       writeCache(servers);
     } catch (e) {
