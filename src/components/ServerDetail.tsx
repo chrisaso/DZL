@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Server } from "../types/server";
 import { serverId, formatMap } from "../utils/format";
 
@@ -5,7 +6,7 @@ interface Props {
   server: Server;
   isFavorite: boolean;
   onFavoriteToggle: (id: string) => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -45,6 +46,7 @@ export function ServerDetail({
   onRefresh,
   onClose,
 }: Props) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const id = serverId(server);
   const playerPct =
     server.maxPlayers > 0
@@ -93,10 +95,28 @@ export function ServerDetail({
 
           {/* Refresh */}
           <button
-            onClick={onRefresh}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border border-trim hover:border-trim/60 hover:text-primary transition-colors cursor-pointer text-secondary"
+            onClick={async () => {
+              setIsRefreshing(true);
+              try {
+                await onRefresh();
+              } finally {
+                setIsRefreshing(false);
+              }
+            }}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border border-trim hover:border-trim/60 hover:text-primary transition-colors cursor-pointer text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={isRefreshing ? "animate-spin" : ""}
+            >
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
               <path d="M3 3v5h5" />
             </svg>

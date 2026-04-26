@@ -103,7 +103,8 @@ function ErrorState({
 }
 
 export function ServerList() {
-  const { servers, loading, refreshing, error, fetchServers } = useServerStore();
+  const { servers, loading, refreshing, error, fetchServers, refreshServer } =
+    useServerStore();
   const { favorites, toggle, isFavorite } = useFavorites();
   const { filters, updateFilter, filtered, maps, versions, sortKey, sortDir, setSort, resetFilters } =
     useFilters(servers, favorites);
@@ -150,6 +151,7 @@ export function ServerList() {
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={setSort}
+            onRefresh={refreshServer}
           />
         )}
 
@@ -158,7 +160,7 @@ export function ServerList() {
             server={selectedServer}
             isFavorite={isFavorite(serverId(selectedServer))}
             onFavoriteToggle={toggle}
-            onRefresh={fetchServers}
+            onRefresh={() => refreshServer(selectedServer!.endpoint.ip, selectedServer!.endpoint.port)}
             onClose={() => setSelectedId(null)}
           />
         )}
