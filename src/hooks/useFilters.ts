@@ -45,12 +45,12 @@ export function useFilters(servers: Server[], favorites: Set<string>) {
   const searchRef = useRef(DEFAULT_FILTERS.search);
 
   const maps = useMemo(
-    () => [...new Set(servers.map((s) => s.map))].sort(),
+    () => [...new Set(servers.map((s) => s.map))].filter(Boolean).sort(),
     [servers],
   );
 
   const versions = useMemo(
-    () => [...new Set(servers.map((s) => s.version))].sort().reverse(),
+    () => [...new Set(servers.map((s) => s.version))].filter(Boolean).sort().reverse(),
     [servers],
   );
 
