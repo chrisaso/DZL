@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { UseConfig } from "../hooks/useConfig";
 import type { LaunchOption, LoginStatus } from "../types/launcher";
+import {
+  collectSetupIssues,
+  hasFieldIssue,
+  issuesForSection,
+  type SetupIssue,
+} from "../utils/setupIssues";
 import {
   Banner,
   Button,
@@ -15,20 +21,85 @@ import {
 function Section({
   title,
   description,
+  issues = [],
   children,
 }: {
   title: string;
   description?: string;
+  issues?: SetupIssue[];
   children: React.ReactNode;
 }) {
   return (
-    <section className="border border-trim rounded-lg bg-surface overflow-hidden">
-      <div className="px-4 py-3 border-b border-trim">
+    <section
+      className={`border rounded-lg bg-surface overflow-hidden ${
+        issues.length > 0 ? "border-accent/40" : "border-trim"
+      }`}
+    >
+      <div className="px-4 py-3 border-b border-trim flex items-center gap-2">
         <h2 className="text-sm font-semibold text-primary">{title}</h2>
-        {description && <p className="text-xs text-muted mt-0.5">{description}</p>}
+        {issues.length > 0 && (
+          <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-accent text-white text-[10px] leading-none">
+            {issues.length}
+          </span>
+        )}
+        {description && (
+          <p className="text-xs text-muted ml-auto text-right">{description}</p>
+        )}
       </div>
       <div className="px-4 py-4 space-y-4">{children}</div>
     </section>
+  );
+}
+
+/** What still needs doing, shown at the top of the page. */
+function SetupSummary({ issues }: { issues: SetupIssue[] }) {
+  if (issues.length === 0) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-lg border border-good/25 bg-good/5 px-4 py-3">
+        <span className="w-5 h-5 rounded-full bg-good/15 text-good flex items-center justify-center">
+          <Icon name="check" size={11} />
+        </span>
+        <p className="text-sm text-primary">
+          Setup complete — the launcher is ready to join servers.
+        </p>
+      </div>
+    );
+  }
+
+  const blocking = issues.filter((i) => i.blocking).length;
+
+  return (
+    <div className="rounded-lg border border-accent/40 bg-accent/5 px-4 py-3">
+      <div className="flex items-center gap-2.5">
+        <span className="w-5 h-5 rounded-full bg-accent/15 text-accent flex items-center justify-center shrink-0">
+          <Icon name="warning" size={11} />
+        </span>
+        <p className="text-sm font-medium text-primary">
+          {issues.length} thing{issues.length === 1 ? "" : "s"} still to set up
+          {blocking > 0 && (
+            <span className="text-accent font-normal">
+              {" "}
+              — {blocking} block{blocking === 1 ? "s" : ""} joining any server
+            </span>
+          )}
+        </p>
+      </div>
+      <ul className="mt-2.5 space-y-1.5">
+        {issues.map((issue) => (
+          <li key={issue.id} className="flex items-start gap-2 text-xs">
+            <span
+              className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${
+                issue.blocking ? "bg-accent" : "bg-warn"
+              }`}
+            />
+            <span>
+              <span className="text-primary font-medium">{issue.title}</span>
+              <span className="text-muted"> — {issue.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -72,6 +143,8 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
   const [testing, setTesting] = useState(false);
   const [fixing, setFixing] = useState(false);
 
+  const issues = useMemo(() => collectSetupIssues(config, env), [config, env]);
+
   useEffect(() => {
     if (!config) return;
     setPlayerName(config.playerName ?? "");
@@ -99,9 +172,12 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
   return (
     <div className="flex-1 overflow-y-auto min-h-0">
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+        <SetupSummary issues={issues} />
+
         <Section
           title="System"
           description="What the launcher found on this machine."
+          issues={issuesForSection(issues, "system")}
         >
           <div className="divide-y divide-trim/40">
             <StatusRow
@@ -165,20 +241,25 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
           </div>
         </Section>
 
-        <Section title="Game">
+        <Section title="Game" issues={issuesForSection(issues, "game")}>
           <Field
             label="In-game name"
+            missing={hasFieldIssue(issues, "playerName")}
             hint="Passed to DayZ as -name. Required before joining."
           >
             <TextInput
               value={playerName}
               onChange={setPlayerName}
               placeholder="Survivor"
-              onEnter={() => save({ playerName: playerName.trim() })}
+              missing={hasFieldIssue(issues, "playerName")}
+              onEnter={() => save({ playerName: playerName.trim() || null })}
+              onBlur={() => save({ playerName: playerName.trim() || null })}
             />
           </Field>
           <Field
             label="Steam library"
+            missing={hasFieldIssue(issues, "steamPath")}
+            missingLabel="DayZ not found"
             hint={
               env.steamPathDetected
                 ? "Detected automatically. Override if DayZ lives in another library."
@@ -189,7 +270,9 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
               value={steamPath}
               onChange={setSteamPath}
               placeholder="/home/you/.steam/steam/steamapps"
+              missing={hasFieldIssue(issues, "steamPath")}
               onEnter={() => save({ steamPath: steamPath.trim() || null })}
+              onBlur={() => save({ steamPath: steamPath.trim() || null })}
             />
           </Field>
           <div className="flex justify-end">
@@ -210,6 +293,7 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
         <Section
           title="Mod downloads"
           description="How missing mods get onto your disk."
+          issues={issuesForSection(issues, "downloads")}
         >
           <CheckRow
             label="Download mods with steamcmd"
@@ -222,6 +306,7 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
             <>
               <Field
                 label="Steam account name"
+                missing={hasFieldIssue(issues, "steamLogin")}
                 hint="DayZ workshop content cannot be downloaded anonymously. Your password never touches this app — steamcmd keeps its own cached login."
               >
                 <div className="flex gap-2">
@@ -230,7 +315,9 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
                       value={steamLogin}
                       onChange={setSteamLogin}
                       placeholder="your_steam_account"
+                      missing={hasFieldIssue(issues, "steamLogin")}
                       onEnter={() => save({ steamLogin: steamLogin.trim() || null })}
+                      onBlur={() => save({ steamLogin: steamLogin.trim() || null })}
                     />
                   </div>
                   <Button

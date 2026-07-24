@@ -14,6 +14,7 @@ import { useServerQuery } from "../hooks/useServerQuery";
 import { useServerStore } from "../store/serverStore";
 import type { ModRef } from "../types/launcher";
 import type { Server } from "../types/server";
+import { collectSetupIssues } from "../utils/setupIssues";
 import { ServerList } from "./ServerList";
 
 export function Launcher() {
@@ -55,19 +56,9 @@ export function Launcher() {
     [query],
   );
 
-  // Everything the user needs to fix before the launcher is fully usable.
-  const issues = useMemo(() => {
-    if (!env || !config) return [];
-    const found: string[] = [];
-    if (!env.dayzInstalled) found.push("DayZ not found");
-    if (!env.maxMapCountOk) found.push("vm.max_map_count too low");
-    if (!config.playerName?.trim()) found.push("No in-game name set");
-    if (config.useSteamcmd && !env.steamcmdInstalled)
-      found.push("steamcmd not installed");
-    if (config.useSteamcmd && !config.steamLogin?.trim())
-      found.push("No Steam account for mod downloads");
-    return found;
-  }, [env, config]);
+  // Everything the user needs to fix before the launcher is fully usable. The
+  // Settings page renders the same list in full, per section.
+  const issues = useMemo(() => collectSetupIssues(config, env), [config, env]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-base">
@@ -87,7 +78,7 @@ export function Launcher() {
             tone="warn"
             title={
               issues.length === 1
-                ? issues[0]
+                ? issues[0].title
                 : `${issues.length} things need setting up`
             }
             action={
@@ -96,7 +87,9 @@ export function Launcher() {
               </Button>
             }
           >
-            {issues.length > 1 ? issues.join(" · ") : "Joining a server will fail until this is sorted."}
+            {issues.length > 1
+              ? issues.map((i) => i.title).join(" · ")
+              : issues[0].detail}
           </Banner>
         </div>
       )}

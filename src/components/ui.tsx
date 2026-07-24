@@ -98,15 +98,27 @@ export function Field({
   label,
   hint,
   children,
+  missing = false,
+  missingLabel = "Required",
 }: {
   label: string;
   hint?: ReactNode;
   children: ReactNode;
+  /** Highlights the field as something the user still has to fill in. */
+  missing?: boolean;
+  missingLabel?: string;
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-semibold text-muted uppercase tracking-widest mb-1.5">
-        {label}
+      <span className="flex items-center gap-2 mb-1.5">
+        <span className="text-xs font-semibold text-muted uppercase tracking-widest">
+          {label}
+        </span>
+        {missing && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent border border-accent/30">
+            {missingLabel}
+          </span>
+        )}
       </span>
       {children}
       {hint && <span className="block text-xs text-muted mt-1">{hint}</span>}
@@ -116,6 +128,8 @@ export function Field({
 
 const INPUT_CLASS =
   "w-full px-2.5 py-1.5 rounded-md bg-elevated border border-trim text-sm text-primary focus:outline-none focus:border-accent transition-colors";
+const INPUT_MISSING_CLASS =
+  "w-full px-2.5 py-1.5 rounded-md bg-accent/5 border border-accent/40 text-sm text-primary focus:outline-none focus:border-accent transition-colors";
 
 export function TextInput({
   value,
@@ -123,14 +137,18 @@ export function TextInput({
   placeholder,
   type = "text",
   onEnter,
+  onBlur,
   disabled,
+  missing = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   type?: "text" | "password";
   onEnter?: () => void;
+  onBlur?: () => void;
   disabled?: boolean;
+  missing?: boolean;
 }) {
   return (
     <input
@@ -139,10 +157,11 @@ export function TextInput({
       disabled={disabled}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
       onKeyDown={(e) => {
         if (e.key === "Enter" && onEnter) onEnter();
       }}
-      className={INPUT_CLASS}
+      className={missing ? INPUT_MISSING_CLASS : INPUT_CLASS}
     />
   );
 }

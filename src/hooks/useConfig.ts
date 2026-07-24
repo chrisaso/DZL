@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppConfig, EnvironmentReport, LoginStatus } from "../types/launcher";
 
 export interface UseConfig {
@@ -19,6 +19,11 @@ export function useConfig(): UseConfig {
   const [env, setEnv] = useState<EnvironmentReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Saves merge against this rather than the captured `config`, so toggling
+  // two settings in quick succession cannot resurrect the older value.
+  const latest = useRef<AppConfig | null>(null);
+  latest.current = config;
 
   const reload = useCallback(async () => {
     try {
@@ -40,30 +45,31 @@ export function useConfig(): UseConfig {
     reload();
   }, [reload]);
 
-  const save = useCallback(
-    async (patch: Partial<AppConfig>) => {
-      if (!config) return null;
-      const merged = { ...config, ...patch };
-      try {
-        const stored = await invoke<AppConfig>("set_config", { config: merged });
-        setConfig(stored);
-        // Steam path changes move every other answer, so re-probe.
-        invoke<EnvironmentReport>("check_environment").then(setEnv).catch(() => {});
-        return stored;
-      } catch (e) {
-        setError(String(e));
-        return null;
-      }
-    },
-    [config],
-  );
+  const save = useCallback(async (patch: Partial<AppConfig>) => {
+    const current = latest.current;
+    if (!current) return null;
+
+    const merged = { ...current, ...patch };
+    latest.current = merged;
+    try {
+      const stored = await invoke<AppConfig>("set_config", { config: merged });
+      setConfig(stored);
+      latest.current = stored;
+      // A new Steam path changes every other answer, so re-probe.
+      invoke<EnvironmentReport>("check_environment").then(setEnv).catch(() => {});
+      return stored;
+    } catch (e) {
+      setError(String(e));
+      return null;
+    }
+  }, []);
 
   const checkLogin = useCallback(
     (login?: string | null) =>
       invoke<LoginStatus>("check_steamcmd_login", {
-        login: login ?? config?.steamLogin ?? null,
+        login: login ?? latest.current?.steamLogin ?? null,
       }),
-    [config],
+    [],
   );
 
   const fixMaxMapCount = useCallback(async () => {
