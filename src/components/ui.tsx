@@ -314,28 +314,31 @@ export function Code({ children }: { children: ReactNode }) {
     setTimeout(() => setCopied(false), 1600);
   };
 
-  // Sized to the content rather than the container, so the button sits right
-  // beside the command instead of drifting to the far edge of a wide panel.
+  // The outer block puts the command on its own line — inline it would trail
+  // off the end of a sentence. The inner box is sized to the content so the
+  // button stays next to the text instead of drifting to the panel's edge.
   return (
-    <div className="mt-1.5 inline-flex max-w-full items-stretch rounded border border-trim bg-base overflow-hidden align-top">
-      <code className="px-2 py-1.5 font-mono text-xs text-secondary break-all select-all">
-        {children}
-      </code>
-      {text && (
-        <button
-          onClick={copy}
-          title="Copy to clipboard"
-          aria-label={copied ? "Copied" : "Copy to clipboard"}
-          className={`shrink-0 inline-flex items-center gap-1 px-2 border-l text-[10px] font-medium transition-colors cursor-pointer ${
-            copied
-              ? "bg-good/15 text-good border-good/30"
-              : "bg-elevated text-secondary border-trim hover:text-primary hover:bg-overlay"
-          }`}
-        >
-          <Icon name={copied ? "check" : "copy"} size={10} />
-          {copied ? "Copied" : "Copy"}
-        </button>
-      )}
+    <div className="mt-2">
+      <div className="inline-flex max-w-full items-stretch rounded border border-trim bg-base overflow-hidden">
+        <code className="px-2.5 py-1.5 font-mono text-xs text-primary break-all select-all">
+          {children}
+        </code>
+        {text && (
+          <button
+            onClick={copy}
+            title="Copy to clipboard"
+            aria-label={copied ? "Copied" : "Copy to clipboard"}
+            className={`shrink-0 inline-flex items-center gap-1 px-2.5 border-l text-[10px] font-medium transition-colors cursor-pointer ${
+              copied
+                ? "bg-good/15 text-good border-good/30"
+                : "bg-elevated text-secondary border-trim hover:text-primary hover:bg-overlay"
+            }`}
+          >
+            <Icon name={copied ? "check" : "copy"} size={10} />
+            {copied ? "Copied" : "Copy"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

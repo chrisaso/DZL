@@ -357,7 +357,7 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
                     {login.message}
                     {login.fixCommand && (
                       <>
-                        <span className="block mt-1.5">
+                        <span className="block mt-1">
                           Run this once in a terminal, finish any Steam Guard
                           prompt, then test again:
                         </span>
