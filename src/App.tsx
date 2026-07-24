@@ -1,7 +1,7 @@
-import { ServerList } from "./pages/ServerList";
+import { Launcher } from "./pages/Launcher";
 
 function App() {
-  return <ServerList />;
+  return <Launcher />;
 }
 
 export default App;

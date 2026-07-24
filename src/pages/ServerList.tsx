@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerStore } from "../store/serverStore";
-import { useFavorites } from "../hooks/useFavorites";
 import { useFilters } from "../hooks/useFilters";
 import { Sidebar } from "../components/Sidebar";
 import { ServerTable } from "../components/ServerTable";
 import { ServerDetail } from "../components/ServerDetail";
-import { serverId } from "../utils/format";
+import { Button, Icon } from "../components/ui";
+import type { HistoryEntry, QueryResult } from "../types/launcher";
+import type { Server } from "../types/server";
+import { serverId, timeAgo } from "../utils/format";
 
 function SkeletonRow() {
   return (
@@ -41,7 +43,7 @@ function LoadingTable() {
         <thead className="sticky top-0 z-10 bg-surface">
           <tr>
             <th className="w-9 px-2 py-2.5 border-b border-trim" />
-            {["Name", "Map", "Players", "Time", "Ping"].map((h) => (
+            {["Name", "Map", "Players", "Time", "Mods"].map((h) => (
               <th
                 key={h}
                 className="px-3 py-2.5 font-medium text-xs text-secondary uppercase tracking-wider border-b border-trim text-left"
@@ -62,29 +64,11 @@ function LoadingTable() {
   );
 }
 
-function ErrorState({
-  error,
-  onRetry,
-}: {
-  error: string;
-  onRetry: () => void;
-}) {
+function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
-      <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="text-accent"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
+      <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+        <Icon name="warning" size={20} />
       </div>
       <div>
         <p className="text-sm font-medium text-primary mb-1">
@@ -92,23 +76,84 @@ function ErrorState({
         </p>
         <p className="text-xs text-muted max-w-xs">{error}</p>
       </div>
-      <button
-        onClick={onRetry}
-        className="px-4 py-1.5 rounded-md text-sm font-medium bg-accent/10 text-accent border border-accent/25 hover:bg-accent/20 transition-colors cursor-pointer"
-      >
+      <Button variant="secondary" onClick={onRetry}>
         Try again
-      </button>
+      </Button>
     </div>
   );
 }
 
-export function ServerList() {
-  const { servers, loading, refreshing, error, fetchServers, refreshServer } =
-    useServerStore();
-  const { favorites, toggle, isFavorite } = useFavorites();
-  const { filters, updateFilter, filtered, maps, versions, sortKey, sortDir, setSort, resetFilters } =
-    useFilters(servers, favorites);
+/** Recently played servers that the master list no longer returns. */
+function OfflineHistory({
+  entries,
+  onForget,
+}: {
+  entries: HistoryEntry[];
+  onForget: (id: string) => void;
+}) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="border-t border-trim px-4 py-3">
+      <p className="text-xs font-semibold text-muted uppercase tracking-widest mb-2">
+        Offline ({entries.length})
+      </p>
+      <div className="space-y-1.5">
+        {entries.map((entry) => (
+          <div key={entry.id} className="flex items-center gap-3 text-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-muted shrink-0" />
+            <span className="text-secondary truncate flex-1">{entry.name}</span>
+            <span className="text-xs font-mono text-muted">{entry.id}</span>
+            <span className="text-xs text-muted">{timeAgo(entry.timestamp)}</span>
+            <button
+              onClick={() => onForget(entry.id)}
+              title="Forget this server"
+              className="text-muted hover:text-accent transition-colors cursor-pointer"
+            >
+              <Icon name="close" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ServerList({
+  favorites,
+  toggleFavorite,
+  history,
+  onForgetHistory,
+  onJoin,
+  queryResults,
+  onVisibleChange,
+  installedMods,
+}: {
+  favorites: Set<string>;
+  toggleFavorite: (id: string) => void;
+  history: HistoryEntry[];
+  onForgetHistory: (id: string) => void;
+  onJoin: (server: Server) => void;
+  queryResults: Map<string, QueryResult>;
+  onVisibleChange: (servers: Server[]) => void;
+  installedMods: Set<string>;
+}) {
+  const { servers, loading, error, fetchServers, refreshServer } = useServerStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const recentIds = useMemo(() => new Set(history.map((e) => e.id)), [history]);
+
+  const {
+    filters,
+    updateFilter,
+    filtered,
+    maps,
+    versions,
+    sortKey,
+    sortDir,
+    setSort,
+    resetFilters,
+    activeFilterCount,
+  } = useFilters(servers, favorites, recentIds);
 
   useEffect(() => {
     fetchServers();
@@ -119,12 +164,22 @@ export function ServerList() {
       ? filtered.find((s) => serverId(s) === selectedId) ?? null
       : null;
 
-  function handleSelect(id: string) {
-    setSelectedId((prev) => (prev === id ? null : id));
-  }
+  const handleSelect = useCallback(
+    (id: string) => setSelectedId((prev) => (prev === id ? null : id)),
+    [],
+  );
+
+  // A favourite or recently played server that has dropped off the master list
+  // is still worth showing — dayz-ctl lists those in red rather than hiding them.
+  const offlineHistory =
+    filters.view === "recent"
+      ? history.filter(
+          (entry) => !servers.some((s) => serverId(s) === entry.id),
+        )
+      : [];
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-base">
+    <div className="flex flex-1 min-h-0 overflow-hidden">
       <Sidebar
         filters={filters}
         updateFilter={updateFilter}
@@ -132,36 +187,50 @@ export function ServerList() {
         versions={versions}
         totalCount={servers.length}
         filteredCount={filtered.length}
-        refreshing={refreshing}
+        favoriteCount={favorites.size}
+        recentCount={history.length}
+        activeFilterCount={activeFilterCount}
         onReset={resetFilters}
       />
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {loading && <LoadingTable />}
-        {!loading && error && (
-          <ErrorState error={error} onRetry={fetchServers} />
-        )}
+        {!loading && error && <ErrorState error={error} onRetry={fetchServers} />}
         {!loading && !error && (
-          <ServerTable
-            servers={filtered}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            favorites={favorites}
-            onFavoriteToggle={toggle}
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={setSort}
-            onRefresh={refreshServer}
-          />
+          <>
+            <ServerTable
+              servers={filtered}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              favorites={favorites}
+              onFavoriteToggle={toggleFavorite}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={setSort}
+              onRefresh={refreshServer}
+              onJoin={onJoin}
+              queryResults={queryResults}
+              onVisibleChange={onVisibleChange}
+            />
+            <OfflineHistory entries={offlineHistory} onForget={onForgetHistory} />
+          </>
         )}
 
         {selectedServer && (
           <ServerDetail
             server={selectedServer}
-            isFavorite={isFavorite(serverId(selectedServer))}
-            onFavoriteToggle={toggle}
-            onRefresh={() => refreshServer(selectedServer!.endpoint.ip, selectedServer!.endpoint.port)}
+            isFavorite={favorites.has(serverId(selectedServer))}
+            onFavoriteToggle={toggleFavorite}
+            onRefresh={() =>
+              refreshServer(
+                selectedServer.endpoint.ip,
+                selectedServer.endpoint.port,
+              )
+            }
             onClose={() => setSelectedId(null)}
+            onJoin={onJoin}
+            queryResult={queryResults.get(serverId(selectedServer))}
+            installedMods={installedMods}
           />
         )}
       </div>

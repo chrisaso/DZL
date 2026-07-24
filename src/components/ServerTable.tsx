@@ -2,7 +2,9 @@ import { useRef, useEffect, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Server } from "../types/server";
 import type { SortKey, SortDir } from "../hooks/useFilters";
-import { serverId, formatMap } from "../utils/format";
+import type { QueryResult } from "../types/launcher";
+import { serverId, formatMap, pingClass } from "../utils/format";
+import { Icon } from "./ui";
 
 interface Props {
   servers: Server[];
@@ -14,27 +16,27 @@ interface Props {
   sortDir: SortDir;
   onSort: (key: SortKey) => void;
   onRefresh: (ip: string, port: number) => Promise<void>;
+  onJoin: (server: Server) => void;
+  /** Live A2S results keyed by `ip:port`. */
+  queryResults: Map<string, QueryResult>;
+  /** Fires as the user scrolls so the visible rows can be pinged. */
+  onVisibleChange: (servers: Server[]) => void;
 }
+
+const COLUMN_COUNT = 8;
 
 function StarIcon({ filled }: { filled: boolean }) {
   return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <Icon
+      name="star"
+      size={13}
+      filled={filled}
       className={
         filled
           ? "text-accent"
           : "text-muted group-hover/star:text-secondary transition-colors"
       }
-    >
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
+    />
   );
 }
 
@@ -74,11 +76,25 @@ function PlayersCell({
   );
 }
 
+function PingCell({ result }: { result: QueryResult | undefined }) {
+  if (!result) return <span className="text-muted">—</span>;
+  if (!result.online)
+    return (
+      <span className="text-muted" title="No answer on the query port">
+        ✕
+      </span>
+    );
+  return (
+    <span className={pingClass(result.pingMs)}>{result.pingMs}</span>
+  );
+}
+
 const SORTABLE_COLS: { key: SortKey; label: string; cls: string }[] = [
   { key: "name", label: "Name", cls: "text-left" },
   { key: "map", label: "Map", cls: "text-left" },
   { key: "players", label: "Players", cls: "text-right" },
   { key: "time", label: "Time", cls: "text-right" },
+  { key: "mods", label: "Mods", cls: "text-right" },
 ];
 
 export function ServerTable({
@@ -91,6 +107,9 @@ export function ServerTable({
   sortDir,
   onSort,
   onRefresh,
+  onJoin,
+  queryResults,
+  onVisibleChange,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
@@ -121,6 +140,18 @@ export function ServerTable({
       ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
       : 0;
 
+  // Ping only what the user can actually see, and only once scrolling settles.
+  const firstIndex = virtualItems[0]?.index ?? 0;
+  const lastIndex = virtualItems[virtualItems.length - 1]?.index ?? 0;
+  useEffect(() => {
+    if (servers.length === 0) return;
+    const timer = setTimeout(
+      () => onVisibleChange(servers.slice(firstIndex, lastIndex + 1)),
+      250,
+    );
+    return () => clearTimeout(timer);
+  }, [firstIndex, lastIndex, servers, onVisibleChange]);
+
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
       <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
@@ -128,10 +159,11 @@ export function ServerTable({
         <colgroup>
           <col style={{ width: 36 }} />
           <col />
-          <col style={{ width: 144 }} />
-          <col style={{ width: 80 }} />
-          <col style={{ width: 64 }} />
-          <col style={{ width: 64 }} />
+          <col style={{ width: 132 }} />
+          <col style={{ width: 78 }} />
+          <col style={{ width: 62 }} />
+          <col style={{ width: 56 }} />
+          <col style={{ width: 58 }} />
           <col style={{ width: 96 }} />
         </colgroup>
 
@@ -148,7 +180,10 @@ export function ServerTable({
                 <SortArrow col={col.key} sortKey={sortKey} sortDir={sortDir} />
               </th>
             ))}
-            <th className="px-3 py-2.5 font-medium text-xs text-secondary uppercase tracking-wider border-b border-trim text-right">
+            <th
+              className="px-3 py-2.5 font-medium text-xs text-secondary uppercase tracking-wider border-b border-trim text-right"
+              title="Live round-trip time to the server's query port"
+            >
               Ping
             </th>
             <th className="px-2 py-2.5 border-b border-trim" />
@@ -159,7 +194,7 @@ export function ServerTable({
           {servers.length === 0 && (
             <tr>
               <td
-                colSpan={7}
+                colSpan={COLUMN_COUNT}
                 className="px-4 py-16 text-center text-secondary text-sm"
               >
                 No servers match your filters
@@ -170,7 +205,7 @@ export function ServerTable({
           {/* Top spacer — fills height of unrendered rows above viewport */}
           {paddingTop > 0 && (
             <tr>
-              <td colSpan={7} style={{ height: paddingTop }} />
+              <td colSpan={COLUMN_COUNT} style={{ height: paddingTop }} />
             </tr>
           )}
 
@@ -187,6 +222,7 @@ export function ServerTable({
                 data-selected={isSelected}
                 className="server-row group"
                 onClick={() => onSelect(id)}
+                onDoubleClick={() => onJoin(server)}
               >
                 <td className="px-2 py-2 border-b border-trim/40">
                   <button
@@ -194,7 +230,7 @@ export function ServerTable({
                       e.stopPropagation();
                       onFavoriteToggle(id);
                     }}
-                    className="group/star flex items-center justify-center w-6 h-6 rounded hover:bg-overlay transition-colors"
+                    className="group/star flex items-center justify-center w-6 h-6 rounded hover:bg-overlay transition-colors cursor-pointer"
                     aria-label={
                       isFav ? "Remove from favourites" : "Add to favourites"
                     }
@@ -212,7 +248,7 @@ export function ServerTable({
                   </div>
                 </td>
 
-                <td className="px-3 py-2 border-b border-trim/40 text-secondary">
+                <td className="px-3 py-2 border-b border-trim/40 text-secondary truncate">
                   {formatMap(server.map)}
                 </td>
 
@@ -227,8 +263,12 @@ export function ServerTable({
                   {server.time}
                 </td>
 
-                <td className="px-3 py-2 border-b border-trim/40 text-right font-mono text-muted">
-                  —
+                <td className="px-3 py-2 border-b border-trim/40 text-right font-mono tabular-nums text-muted">
+                  {server.mods.length || "—"}
+                </td>
+
+                <td className="px-3 py-2 border-b border-trim/40 text-right font-mono tabular-nums">
+                  <PingCell result={queryResults.get(id)} />
                 </td>
 
                 <td className="px-2 py-2 border-b border-trim/40">
@@ -253,22 +293,16 @@ export function ServerTable({
                       disabled={refreshingIds.has(id)}
                       className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md text-secondary border border-trim/40 hover:border-trim hover:text-primary transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                      <Icon
+                        name="refresh"
                         className={refreshingIds.has(id) ? "animate-spin" : ""}
-                      >
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                        <path d="M3 3v5h5" />
-                      </svg>
+                      />
                     </button>
                     <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onJoin(server);
+                      }}
                       className="opacity-0 group-hover:opacity-100 px-2.5 py-1 rounded-md text-xs font-semibold bg-accent/10 text-accent border border-accent/25 hover:bg-accent/20 transition-all cursor-pointer"
                       title="Join server"
                       aria-label={`Join ${server.name}`}
@@ -284,7 +318,7 @@ export function ServerTable({
           {/* Bottom spacer — fills height of unrendered rows below viewport */}
           {paddingBottom > 0 && (
             <tr>
-              <td colSpan={7} style={{ height: paddingBottom }} />
+              <td colSpan={COLUMN_COUNT} style={{ height: paddingBottom }} />
             </tr>
           )}
         </tbody>
