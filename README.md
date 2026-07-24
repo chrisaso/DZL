@@ -68,7 +68,29 @@ Then put the account name in Settings and hit **Test login**. If you would
 rather not use steamcmd at all, turn it off in Settings and the launcher will
 send you to the Steam Workshop to subscribe instead.
 
-## Running it
+## Install
+
+```sh
+git clone <this repo> && cd dzl
+./scripts/install.sh
+```
+
+That builds the AppImage if needed and installs into `~/.local` — no root, no
+system files touched. DZL then appears in your application menu, and `dzl`
+works from a terminal if `~/.local/bin` is on your PATH.
+
+```sh
+./scripts/install.sh --binary     # install the 22 MB binary instead of the
+                                  # 93 MB AppImage; uses your system WebKitGTK
+./scripts/install.sh --uninstall  # remove it, keeping your settings
+./scripts/install.sh --uninstall --purge   # remove settings too
+```
+
+Uninstalling never touches your installed mods or their symlinks.
+
+Building needs Node and Rust; running does not.
+
+## Building by hand
 
 The release build is a single self-contained binary — the web UI is compiled
 into it, so nothing else needs to be running:
