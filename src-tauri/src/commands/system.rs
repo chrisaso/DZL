@@ -82,8 +82,17 @@ const APPIMAGE_INJECTED: &[&str] = &[
     "GDK_PIXBUF_MODULEDIR",
 ];
 
-/// Workarounds we apply to our own window that a game must not inherit.
-const LAUNCHER_ONLY: &[&str] = &["GDK_BACKEND", "WEBKIT_DISABLE_DMABUF_RENDERER"];
+/// Workarounds we apply to our own window that a game must not inherit, plus
+/// the AppImage's own breadcrumbs — a child that finds APPDIR set may decide
+/// it is itself running from an AppImage.
+const LAUNCHER_ONLY: &[&str] = &[
+    "GDK_BACKEND",
+    "WEBKIT_DISABLE_DMABUF_RENDERER",
+    "APPDIR",
+    "APPIMAGE",
+    "ARGV0",
+    "OWD",
+];
 
 /// Drops the entries that point inside the AppImage, keeping anything the user
 /// already had. Returns `None` when nothing worthwhile is left.

@@ -287,6 +287,12 @@ pub(crate) fn last_segment(chunk: &str) -> &str {
     chunk.rsplit('\r').next().unwrap_or(chunk).trim()
 }
 
+/// A steamcmd output line ready to show a human: newest redraw only, and no
+/// colour escapes, which otherwise reach the UI as literal `[0m` garbage.
+pub(crate) fn clean_line(raw: &str) -> String {
+    strip_ansi(last_segment(raw)).trim().to_string()
+}
+
 /// Where a workshop item may have landed. steamcmd downloads into whichever
 /// Steam root it resolves, which is not always the library the game lives in.
 pub(crate) fn download_search_paths(
@@ -425,7 +431,8 @@ where
     if let Some(stdout) = child.stdout.take() {
         let mut lines = tokio::io::BufReader::new(stdout).lines();
         while let Ok(Some(raw)) = lines.next_line().await {
-            let line = last_segment(&raw);
+            let cleaned = clean_line(&raw);
+            let line = cleaned.as_str();
             if line.is_empty() {
                 continue;
             }
@@ -635,6 +642,23 @@ mod tests {
     fn last_segment_keeps_final_carriage_return_chunk() {
         assert_eq!(last_segment("old\rnewer\rnewest  "), "newest");
         assert_eq!(last_segment("plain line"), "plain line");
+    }
+
+    #[test]
+    fn progress_lines_reach_the_ui_without_escape_codes() {
+        // Exactly what showed up in the download progress text.
+        assert_eq!(
+            clean_line("\u{1b}[0mWaiting for user info...\u{1b}[0mOK"),
+            "Waiting for user info...OK"
+        );
+    }
+
+    #[test]
+    fn clean_line_still_keeps_only_the_newest_redraw() {
+        assert_eq!(
+            clean_line("\u{1b}[0mold progress\rnewest progress"),
+            "newest progress"
+        );
     }
 
     #[test]
