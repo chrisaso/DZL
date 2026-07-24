@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { useState, type ReactNode } from "react";
 
 /** Shared primitives so every panel in the launcher looks like one app. */
 
@@ -287,11 +288,53 @@ export function Banner({
   );
 }
 
+/**
+ * A command or path the user may need to run. When the content is plain text
+ * it gets a copy button — these are usually commands that have to be pasted
+ * into a terminal, and retyping an account name invites typos.
+ */
 export function Code({ children }: { children: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const text = typeof children === "string" ? children : null;
+
+  const copy = async () => {
+    if (!text) return;
+    try {
+      await writeText(text);
+    } catch {
+      // Outside the Tauri runtime (or if the plugin is unavailable) fall back
+      // to the web clipboard so the button is never simply dead.
+      try {
+        await navigator.clipboard?.writeText(text);
+      } catch {
+        return;
+      }
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+
   return (
-    <code className="block mt-1.5 px-2 py-1.5 rounded bg-base border border-trim font-mono text-xs text-secondary break-all select-all">
-      {children}
-    </code>
+    <div className="relative mt-1.5 group/code">
+      <code className="block px-2 py-1.5 pr-16 rounded bg-base border border-trim font-mono text-xs text-secondary break-all select-all">
+        {children}
+      </code>
+      {text && (
+        <button
+          onClick={copy}
+          title="Copy to clipboard"
+          aria-label={copied ? "Copied" : "Copy to clipboard"}
+          className={`absolute top-1 right-1 inline-flex items-center gap-1 px-1.5 py-1 rounded text-[10px] font-medium border transition-colors cursor-pointer ${
+            copied
+              ? "bg-good/15 text-good border-good/30"
+              : "bg-elevated text-secondary border-trim hover:text-primary"
+          }`}
+        >
+          <Icon name={copied ? "check" : "copy"} size={10} />
+          {copied ? "Copied" : "Copy"}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -392,6 +435,12 @@ const ICON_PATHS: Record<string, ReactNode> = {
     </>
   ),
   check: <polyline points="20 6 9 17 4 12" />,
+  copy: (
+    <>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
+  ),
   external: (
     <>
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />

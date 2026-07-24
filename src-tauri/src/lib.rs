@@ -1,12 +1,20 @@
 mod commands;
 mod tray;
+#[cfg(target_os = "linux")]
+mod tray_sni;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
+            // Linux gets a StatusNotifierItem tray so a left click can open
+            // the window; every other platform uses Tauri's own.
+            #[cfg(target_os = "linux")]
+            tray_sni::build(app.handle());
+            #[cfg(not(target_os = "linux"))]
             tray::build(app.handle())?;
             Ok(())
         })
