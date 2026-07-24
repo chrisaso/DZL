@@ -62,11 +62,43 @@ Then put the account name in Settings and hit **Test login**. If you would
 rather not use steamcmd at all, turn it off in Settings and the launcher will
 send you to the Steam Workshop to subscribe instead.
 
+## Running it
+
+The release build is a single self-contained binary — the web UI is compiled
+into it, so nothing else needs to be running:
+
+```sh
+npm run tauri build                              # ~2 min
+./src-tauri/target/release/zed-launcher
+```
+
+That also writes `.deb` and `.rpm` packages to
+`src-tauri/target/release/bundle/`.
+
+For a portable single file:
+
+```sh
+npm run build:appimage
+./src-tauri/target/release/bundle/appimage/zed-launcher_0.1.0_amd64.AppImage
+```
+
+`npm run build:appimage` exists because plain `tauri build --bundles appimage`
+fails on current Arch: linuxdeploy's bundled `strip` cannot read libraries with
+`.relr.dyn` sections, and its GTK plugin copies a gdk-pixbuf directory that
+2.44 no longer ships. The script works around both — see the comments in
+`scripts/build-appimage.sh`. The trade-off is that GTK is not bundled, so the
+AppImage uses the host's copy. That is fine on any machine that runs Steam,
+but it is less portable than an AppImage built on an older distro.
+
+If the window comes up blank, launch it with
+`WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11` — the same variables the dev
+script sets.
+
 ## Development
 
 ```sh
 npm install
-npm run tauri dev     # run the app
+npm run tauri dev     # run the app against the Vite dev server
 npm test              # frontend tests
 npm run build         # typecheck + production bundle
 
@@ -74,6 +106,9 @@ cd src-tauri
 cargo test            # backend tests
 cargo clippy --all-targets
 ```
+
+`bundle.targets` in `src-tauri/tauri.conf.json` is set to `["deb", "rpm"]`
+because this is Linux-first; a Windows build will need `nsis`/`msi` added.
 
 State lives in the Tauri store (`config.json`) for settings, and in
 localStorage for favourites and recently played servers. Mods this launcher
