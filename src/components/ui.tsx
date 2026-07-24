@@ -262,7 +262,7 @@ export function Banner({
   children,
   action,
 }: {
-  tone?: "warn" | "danger" | "info";
+  tone?: "warn" | "danger" | "info" | "success";
   title: string;
   children?: ReactNode;
   action?: ReactNode;
@@ -271,13 +271,19 @@ export function Banner({
     warn: "border-warn/30 bg-warn/5",
     danger: "border-accent/30 bg-accent/5",
     info: "border-trim bg-elevated",
+    success: "border-good/40 bg-good/10",
   } as const;
-  const iconTones = { warn: "text-warn", danger: "text-accent", info: "text-secondary" } as const;
+  const iconTones = {
+    warn: "text-warn",
+    danger: "text-accent",
+    info: "text-secondary",
+    success: "text-good",
+  } as const;
 
   return (
     <div className={`flex items-start gap-3 rounded-md border px-3 py-2.5 ${tones[tone]}`}>
       <span className={`mt-0.5 shrink-0 ${iconTones[tone]}`}>
-        <Icon name="warning" />
+        <Icon name={tone === "success" ? "check" : "warning"} />
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-primary">{title}</p>

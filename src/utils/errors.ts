@@ -38,12 +38,13 @@ const SETTINGS_FIXES = new Set([
   "steamcmd-not-found",
 ]);
 
-/** Pulls a `steamcmd +login name` style command out of a message. */
+/** Pulls a `steamcmd +login name +quit` style command out of a message. */
 function extractCommand(text: string): string | undefined {
   const backticked = text.match(/`([^`]+)`/);
   if (backticked) return backticked[1];
 
-  const bare = text.match(/\b(steamcmd \+login \S+)/);
+  // The trailing +quit is part of the command, not the sentence around it.
+  const bare = text.match(/\b(steamcmd \+login \S+(?: \+quit)?)/);
   return bare?.[1];
 }
 

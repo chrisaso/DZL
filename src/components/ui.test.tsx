@@ -14,12 +14,12 @@ describe("Code", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("copies its contents to the clipboard", async () => {
-    render(<Code>steamcmd +login adaptiq_</Code>);
+    render(<Code>steamcmd +login adaptiq_ +quit</Code>);
 
     screen.getByRole("button", { name: /copy to clipboard/i }).click();
 
     await waitFor(() =>
-      expect(mockWriteText).toHaveBeenCalledWith("steamcmd +login adaptiq_"),
+      expect(mockWriteText).toHaveBeenCalledWith("steamcmd +login adaptiq_ +quit"),
     );
     await waitFor(() => screen.getByRole("button", { name: /copied/i }));
   });

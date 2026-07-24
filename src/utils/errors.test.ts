@@ -5,12 +5,12 @@ describe("describeError", () => {
   it("turns a steamcmd login failure into the command to run", () => {
     const result = describeError(
       "steamcmd-login-required: steamcmd is not signed in as adaptiq_. Run " +
-        "`steamcmd +login adaptiq_` once in a terminal, finish any Steam Guard " +
-        "prompt, then try again.",
+        "`steamcmd +login adaptiq_ +quit` once in a terminal, finish any Steam " +
+        "Guard prompt, then try again.",
     );
 
     expect(result.title).toBe("steamcmd is not signed in");
-    expect(result.command).toBe("steamcmd +login adaptiq_");
+    expect(result.command).toBe("steamcmd +login adaptiq_ +quit");
     expect(result.detail).not.toContain("`");
   });
 
@@ -50,5 +50,12 @@ describe("describeError", () => {
       "steamcmd-login-required: run steamcmd +login someone to fix it",
     );
     expect(result.command).toBe("steamcmd +login someone");
+  });
+
+  it("keeps a trailing +quit as part of a bare command", () => {
+    const result = describeError(
+      "steamcmd-login-required: run steamcmd +login someone +quit first",
+    );
+    expect(result.command).toBe("steamcmd +login someone +quit");
   });
 });

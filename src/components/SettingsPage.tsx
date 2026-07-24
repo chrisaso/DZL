@@ -349,7 +349,7 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
 
               {login &&
                 (login.loggedIn ? (
-                  <Banner tone="info" title="steamcmd is signed in">
+                  <Banner tone="success" title="steamcmd is signed in">
                     {login.message}
                   </Banner>
                 ) : (

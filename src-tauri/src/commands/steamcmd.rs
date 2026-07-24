@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// Result of probing steamcmd's cached credentials.
 ///
 /// The launcher never handles passwords. steamcmd caches its own login token
-/// after a one-time interactive `steamcmd +login <user>` in a terminal; all we
+/// after a one-time interactive `steamcmd +login <user> +quit` in a terminal; all we
 /// do is verify that token still works.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +17,15 @@ pub struct LoginStatus {
     pub message: String,
     /// The command the user should run in a terminal to fix things.
     pub fix_command: Option<String>,
+}
+
+/// The one-time sign-in the user has to run themselves, in the single place it
+/// is defined so every message shows the same thing.
+///
+/// `+quit` matters: without it steamcmd stays in its interactive prompt after
+/// logging in, and it is not obvious that you are meant to type `quit`.
+pub(crate) fn login_command(login: &str) -> String {
+    format!("steamcmd +login {} +quit", login)
 }
 
 fn base_args(login: &str) -> Vec<String> {
@@ -32,14 +41,36 @@ fn base_args(login: &str) -> Vec<String> {
     ]
 }
 
-/// Classifies steamcmd's console output after a login attempt.
-pub(crate) fn parse_login_output(output: &str, success: bool) -> (bool, &'static str, String) {
-    let lower = output.to_lowercase();
+/// Removes the colour escapes steamcmd sprays through its output, including
+/// mid-word ones like `Waiting for user info...\x1b[0mOK` that otherwise break
+/// any attempt to match a phrase.
+pub(crate) fn strip_ansi(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars();
 
-    let banner = lower.contains("logged in ok") || lower.contains("waiting for user info...ok");
-    if banner && success {
-        return (true, "ok", "Logged in and ready to download mods".into());
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            // Skip to the final byte of the escape sequence.
+            for next in chars.by_ref() {
+                if next.is_ascii_alphabetic() || next == '~' || next == '@' {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
     }
+
+    out
+}
+
+/// Classifies steamcmd's console output after a login attempt.
+///
+/// Failures are checked before successes, and each marker has to be specific:
+/// "cached credential" alone matches "Logging in using cached credentials",
+/// which is what steamcmd says when the login *works*.
+pub(crate) fn parse_login_output(output: &str, success: bool) -> (bool, &'static str, String) {
+    let lower = strip_ansi(output).to_lowercase();
 
     if lower.contains("two-factor") || lower.contains("steam guard") {
         return (
@@ -62,9 +93,9 @@ pub(crate) fn parse_login_output(output: &str, success: bool) -> (bool, &'static
             "Steam is rate limiting logins — wait a few minutes and retry".into(),
         );
     }
-    if lower.contains("no cached credentials")
-        || lower.contains("password:")
-        || lower.contains("cached credential")
+    if lower.contains("cached credentials not found")
+        || lower.contains("no cached credentials")
+        || lower.contains("login failure")
         || (lower.contains("failed (") && lower.contains("login"))
     {
         return (
@@ -74,8 +105,18 @@ pub(crate) fn parse_login_output(output: &str, success: bool) -> (bool, &'static
         );
     }
 
+    // Nothing went wrong, so look for proof it went right.
+    let signed_in = lower.contains("logged in ok")
+        || lower.contains("waiting for user info...ok")
+        || lower.contains("to steam public...ok")
+        || lower.contains("logging in using cached credentials");
+
+    if success && signed_in {
+        return (true, "ok", "Signed in and ready to download mods".into());
+    }
     if success {
-        // Exit code was clean but we didn't see the banner; treat as usable.
+        // Clean exit without a recognisable banner; steamcmd changes its
+        // wording between versions, so trust the exit code.
         return (true, "ok", "steamcmd login accepted".into());
     }
 
@@ -115,7 +156,7 @@ pub async fn check_steamcmd_login(login: Option<String>) -> LoginStatus {
         }
     };
 
-    let fix_command = Some(format!("steamcmd +login {}", login));
+    let fix_command = Some(login_command(&login));
 
     let mut args = base_args(&login);
     args.push("+quit".into());
@@ -221,9 +262,10 @@ pub(crate) fn classify_failure(
     if saw_login_failure || exit_code == EXIT_LOGIN_FAILURE {
         return format!(
             "steamcmd-login-required: steamcmd is not signed in as {}. Run \
-             `steamcmd +login {}` once in a terminal, finish any Steam Guard \
-             prompt, then try again.",
-            login, login
+             `{}` once in a terminal, finish any Steam Guard prompt, then try \
+             again.",
+            login,
+            login_command(login)
         );
     }
 
@@ -419,6 +461,49 @@ where
 mod tests {
     use super::*;
 
+    /// Verbatim from a real successful run, escapes and all. steamcmd never
+    /// prints "Logged in OK", and it breaks its own phrases with colour codes.
+    const REAL_SUCCESS: &str = "Loading Steam API...\u{1b}[0mOK\n\
+         \u{1b}[0m\u{1b}[1mLogging in using cached credentials.\n\
+         \u{1b}[0mLogging in user 'adaptiq_' [U:1:419704515] to Steam Public...\u{1b}[0mOK\n\
+         \u{1b}[0mWaiting for client config...\u{1b}[0mOK\n\
+         \u{1b}[0mWaiting for user info...\u{1b}[0mOK\n";
+
+    /// Verbatim from a real run with no cached token.
+    const REAL_NO_CREDENTIALS: &str = "\u{1b}[0m\u{1b}[1mCached credentials not found.\n\
+         \u{1b}[0mFAILED (No cached credentials and @NoPromptForPassword is set)\n";
+
+    #[test]
+    fn strip_ansi_removes_mid_word_escapes() {
+        assert_eq!(
+            strip_ansi("Waiting for user info...\u{1b}[0mOK"),
+            "Waiting for user info...OK"
+        );
+        assert_eq!(strip_ansi("plain text"), "plain text");
+    }
+
+    #[test]
+    fn a_real_successful_login_is_recognised() {
+        let (ok, reason, _) = parse_login_output(REAL_SUCCESS, true);
+        assert!(ok, "a working login must not be reported as a failure");
+        assert_eq!(reason, "ok");
+    }
+
+    #[test]
+    fn using_cached_credentials_is_success_not_a_missing_credentials_error() {
+        // "Logging in using cached credentials" contains the substring
+        // "cached credential"; matching that loosely broke a working login.
+        let (ok, _, _) = parse_login_output("Logging in using cached credentials.\n", true);
+        assert!(ok);
+    }
+
+    #[test]
+    fn a_real_missing_credentials_run_is_recognised() {
+        let (ok, reason, _) = parse_login_output(REAL_NO_CREDENTIALS, false);
+        assert!(!ok);
+        assert_eq!(reason, "needs-login");
+    }
+
     #[test]
     fn login_output_recognises_success() {
         let (ok, reason, _) = parse_login_output("Logging in user...\nLogged in OK\n", true);
@@ -503,11 +588,17 @@ mod tests {
     }
 
     #[test]
+    fn the_sign_in_command_quits_when_it_is_done() {
+        // Without +quit steamcmd sits at its own prompt afterwards.
+        assert_eq!(login_command("adaptiq_"), "steamcmd +login adaptiq_ +quit");
+    }
+
+    #[test]
     fn exit_five_is_reported_as_a_login_problem_with_the_fix() {
         let message = classify_failure(5, false, None, "adaptiq_", "3457620661");
         assert!(message.starts_with("steamcmd-login-required:"));
         assert!(
-            message.contains("steamcmd +login adaptiq_"),
+            message.contains(&login_command("adaptiq_")),
             "the message must contain the exact command to run: {}",
             message
         );

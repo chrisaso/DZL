@@ -61,7 +61,7 @@ the launcher needs a Steam account name. Your password never touches this app â€
 sign in to steamcmd once in a terminal and it caches its own login token:
 
 ```sh
-steamcmd +login your_account_name
+steamcmd +login your_account_name +quit
 ```
 
 Then put the account name in Settings and hit **Test login**. If you would
@@ -118,27 +118,8 @@ fails on current Arch: linuxdeploy's bundled `strip` cannot read libraries with
 AppImage uses the host's copy. That is fine on any machine that runs Steam,
 but it is less portable than an AppImage built on an older distro.
 
-### Desktop entry
-
-To get it in your application menu:
-
-```sh
-mkdir -p ~/.local/bin ~/.local/share/applications
-cp src-tauri/target/release/bundle/appimage/dzl_0.1.0_amd64.AppImage \
-   ~/.local/bin/dzl
-chmod +x ~/.local/bin/dzl
-
-cat > ~/.local/share/applications/dzl.desktop <<'EOF'
-[Desktop Entry]
-Name=DZL
-Comment=DayZ server browser and mod launcher
-Exec=/home/YOUR_USER/.local/bin/dzl
-Icon=steam_icon_221100
-Terminal=false
-Type=Application
-Categories=Game;
-EOF
-```
+`./scripts/install.sh` handles the desktop entry and icons for you; the steps
+above are only needed if you want to place the files yourself.
 
 ### Wayland
 
