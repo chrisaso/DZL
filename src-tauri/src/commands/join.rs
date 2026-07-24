@@ -406,6 +406,12 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
     emit(app, "waiting", None, 0, 0, None);
     for _ in 0..60 {
         if dayz_running() {
+            // Only get out of the way once the game is actually up — if the
+            // launch failed the user needs to see the window, not hunt for it
+            // in the tray.
+            if config.hide_to_tray_on_launch {
+                crate::tray::hide_window(app);
+            }
             return Ok(());
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;

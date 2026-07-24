@@ -10,6 +10,7 @@ import { useConfig } from "../hooks/useConfig";
 import { useFavorites } from "../hooks/useFavorites";
 import { useHistory } from "../hooks/useHistory";
 import { useJoinServer } from "../hooks/useJoinServer";
+import { useModUpdates } from "../hooks/useModUpdates";
 import { useServerQuery } from "../hooks/useServerQuery";
 import { useServerStore } from "../store/serverStore";
 import type { ModRef } from "../types/launcher";
@@ -30,6 +31,7 @@ export function Launcher() {
   const { refreshing, forceRefresh } = useServerStore();
 
   const [installedMods, setInstalledMods] = useState<Set<string>>(new Set());
+  const modUpdates = useModUpdates();
 
   const loadInstalledMods = useCallback(() => {
     invoke<ModRef[]>("list_mod_refs", { steamPath: null })
@@ -38,6 +40,13 @@ export function Launcher() {
   }, []);
 
   useEffect(loadInstalledMods, [loadInstalledMods]);
+
+  // One Workshop round-trip at startup so the Mods tab badge is accurate
+  // before the user ever opens it.
+  const checkUpdates = modUpdates.check;
+  useEffect(() => {
+    checkUpdates();
+  }, [checkUpdates]);
 
   const join = useJoinServer({
     onLaunched: (server) => {
@@ -67,10 +76,34 @@ export function Launcher() {
         onTab={setTab}
         env={env}
         issueCount={issues.length}
+        modUpdateCount={modUpdates.outdated.length}
         refreshing={refreshing}
         onRefresh={forceRefresh}
         onManualLaunch={() => setManualLaunch(true)}
       />
+
+      {modUpdates.outdated.length > 0 && tab !== "mods" && (
+        <div className="px-4 py-2 border-b border-trim bg-surface/60">
+          <Banner
+            tone="warn"
+            title={`${modUpdates.outdated.length} mod update${
+              modUpdates.outdated.length === 1 ? "" : "s"
+            } available`}
+            action={
+              <Button variant="secondary" onClick={() => setTab("mods")}>
+                Review in mods
+              </Button>
+            }
+          >
+            {modUpdates.outdated
+              .slice(0, 4)
+              .map((m) => m.name)
+              .join(" · ")}
+            {modUpdates.outdated.length > 4 &&
+              ` · +${modUpdates.outdated.length - 4} more`}
+          </Banner>
+        </div>
+      )}
 
       {issues.length > 0 && tab !== "settings" && (
         <div className="px-4 py-2 border-b border-trim bg-surface/60">
@@ -107,7 +140,17 @@ export function Launcher() {
         />
       )}
 
-      {tab === "mods" && <ModsPage active />}
+      {tab === "mods" && (
+        <ModsPage
+          active
+          updates={modUpdates.statuses}
+          outdated={modUpdates.outdated}
+          checkingUpdates={modUpdates.checking}
+          updatesError={modUpdates.error}
+          lastChecked={modUpdates.lastChecked}
+          onCheckUpdates={modUpdates.check}
+        />
+      )}
 
       {tab === "settings" && <SettingsPage configState={configState} />}
 

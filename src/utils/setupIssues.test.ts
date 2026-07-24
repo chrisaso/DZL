@@ -15,6 +15,7 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     closeSteamForDownloads: true,
     killRunningDayz: true,
     updateModsOnJoin: false,
+    hideToTrayOnLaunch: false,
     launchOptions: [],
     customArgs: [],
     setupComplete: true,

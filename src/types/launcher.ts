@@ -16,6 +16,7 @@ export interface AppConfig {
   closeSteamForDownloads: boolean;
   killRunningDayz: boolean;
   updateModsOnJoin: boolean;
+  hideToTrayOnLaunch: boolean;
   launchOptions: LaunchOption[];
   customArgs: string[];
   setupComplete: boolean;
@@ -69,6 +70,18 @@ export interface InstalledMod {
   managed: boolean;
   /** Has a working `@id` symlink in the DayZ directory. */
   linked: boolean;
+}
+
+export interface ModUpdateStatus {
+  workshopId: string;
+  name: string;
+  /** Newest local content file, unix seconds. */
+  localUpdated: number | null;
+  /** When the author last published, unix seconds. */
+  remoteUpdated: number | null;
+  updateAvailable: boolean;
+  remoteTitle: string | null;
+  remoteSizeBytes: number | null;
 }
 
 export interface ModLibrary {

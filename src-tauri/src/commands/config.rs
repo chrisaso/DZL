@@ -127,6 +127,8 @@ pub struct AppConfig {
     pub kill_running_dayz: bool,
     /// Update every mod a server requires on join, not just the missing ones.
     pub update_mods_on_join: bool,
+    /// Hide the window to the system tray once the game is running.
+    pub hide_to_tray_on_launch: bool,
     pub launch_options: Vec<LaunchOption>,
     /// Free-form extra arguments appended verbatim to the launch command.
     pub custom_args: Vec<String>,
@@ -143,6 +145,9 @@ impl Default for AppConfig {
             close_steam_for_downloads: true,
             kill_running_dayz: true,
             update_mods_on_join: false,
+            // Off by default: a launcher that vanishes unprompted is
+            // surprising, so the user opts in.
+            hide_to_tray_on_launch: false,
             launch_options: default_launch_options(),
             custom_args: Vec::new(),
             setup_complete: false,
@@ -341,6 +346,11 @@ mod tests {
         assert!(config.use_steamcmd);
         assert!(config.close_steam_for_downloads);
         assert!(!config.setup_complete);
+    }
+
+    #[test]
+    fn hiding_to_tray_is_opt_in() {
+        assert!(!AppConfig::default().hide_to_tray_on_launch);
     }
 
     #[test]

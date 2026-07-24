@@ -1,10 +1,15 @@
 mod commands;
+mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .setup(|app| {
+            tray::build(app.handle())?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::config::get_config,
             commands::config::set_config,
@@ -31,6 +36,7 @@ pub fn run() {
             commands::mods::remove_all_links,
             commands::mods::relink_all_mods,
             commands::mods::update_mods,
+            commands::updates::check_mod_updates,
             commands::a2s::query_servers,
         ])
         .run(tauri::generate_context!())

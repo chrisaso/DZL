@@ -1,10 +1,29 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMemo, useState } from "react";
 import { useMods } from "../hooks/useMods";
-import { formatBytes } from "../utils/format";
+import type { ModUpdateStatus } from "../types/launcher";
+import { formatBytes, timeAgo } from "../utils/format";
 import { Banner, Button, Icon, ProgressBar, Spinner, TextInput } from "./ui";
 
-export function ModsPage({ active }: { active: boolean }) {
+interface ModsPageProps {
+  active: boolean;
+  updates: Map<string, ModUpdateStatus>;
+  outdated: ModUpdateStatus[];
+  checkingUpdates: boolean;
+  updatesError: string | null;
+  lastChecked: number | null;
+  onCheckUpdates: () => void;
+}
+
+export function ModsPage({
+  active,
+  updates,
+  outdated,
+  checkingUpdates,
+  updatesError,
+  lastChecked,
+  onCheckUpdates,
+}: ModsPageProps) {
   const {
     library,
     loading,
@@ -49,6 +68,12 @@ export function ModsPage({ active }: { active: boolean }) {
 
   const disabled = busy !== null;
 
+  /** Re-checks the Workshop afterwards so the flags clear on success. */
+  const runUpdate = async (workshopIds: string[]) => {
+    const ok = await updateMods(workshopIds);
+    if (ok) onCheckUpdates();
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-5 py-3 border-b border-trim flex items-center gap-3 flex-wrap">
@@ -62,6 +87,9 @@ export function ModsPage({ active }: { active: boolean }) {
               <span className="text-secondary">{library.mods.length}</span> mods ·{" "}
               <span className="text-secondary">{formatBytes(library.totalSizeBytes)}</span> ·{" "}
               {library.linkedCount} linked · {library.managedCount} launcher-installed
+              {lastChecked && (
+                <span className="text-muted"> · checked {timeAgo(lastChecked)}</span>
+              )}
             </>
           ) : (
             "—"
@@ -69,6 +97,10 @@ export function ModsPage({ active }: { active: boolean }) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <Button onClick={onCheckUpdates} disabled={disabled || checkingUpdates}>
+            {checkingUpdates ? <Spinner /> : <Icon name="download" />}
+            Check updates
+          </Button>
           <Button onClick={refresh} disabled={disabled || loading}>
             {loading ? <Spinner /> : <Icon name="refresh" />}
             Rescan
@@ -86,6 +118,41 @@ export function ModsPage({ active }: { active: boolean }) {
         </div>
       </div>
 
+      {outdated.length > 0 && (
+        <div className="px-5 py-2.5 border-b border-trim">
+          <Banner
+            tone="warn"
+            title={`${outdated.length} mod${outdated.length === 1 ? "" : "s"} ${
+              outdated.length === 1 ? "has" : "have"
+            } an update on the Workshop`}
+            action={
+              <Button
+                variant="secondary"
+                disabled={disabled}
+                onClick={() => runUpdate(outdated.map((m) => m.workshopId))}
+              >
+                <Icon name="download" />
+                Update all
+              </Button>
+            }
+          >
+            {outdated
+              .slice(0, 6)
+              .map((m) => m.name)
+              .join(" · ")}
+            {outdated.length > 6 && ` · +${outdated.length - 6} more`}
+          </Banner>
+        </div>
+      )}
+
+      {updatesError && (
+        <div className="px-5 py-2.5 border-b border-trim">
+          <Banner tone="info" title="Could not check the Workshop for updates">
+            {updatesError}
+          </Banner>
+        </div>
+      )}
+
       {selected.size > 0 && (
         <div className="px-5 py-2 border-b border-trim bg-elevated/60 flex items-center gap-3">
           <span className="text-xs text-secondary">
@@ -96,7 +163,7 @@ export function ModsPage({ active }: { active: boolean }) {
             <Button
               variant="secondary"
               disabled={disabled}
-              onClick={() => updateMods([...selected])}
+              onClick={() => runUpdate([...selected])}
             >
               <Icon name="download" />
               Update
@@ -212,6 +279,21 @@ export function ModsPage({ active }: { active: boolean }) {
                   </td>
                   <td className="px-3 py-2 border-b border-trim/40">
                     <div className="flex flex-wrap gap-1">
+                      {updates.get(mod.workshopId)?.updateAvailable && (
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border bg-accent/15 text-accent border-accent/30"
+                          title={
+                            updates.get(mod.workshopId)?.remoteUpdated
+                              ? `Workshop copy published ${timeAgo(
+                                  updates.get(mod.workshopId)!.remoteUpdated! * 1000,
+                                )}`
+                              : "A newer version is on the Workshop"
+                          }
+                        >
+                          <Icon name="download" size={8} />
+                          update
+                        </span>
+                      )}
                       <span
                         className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${
                           mod.managed

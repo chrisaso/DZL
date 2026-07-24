@@ -25,6 +25,7 @@ export function TopBar({
   onTab,
   env,
   issueCount,
+  modUpdateCount,
   refreshing,
   onRefresh,
   onManualLaunch,
@@ -33,10 +34,14 @@ export function TopBar({
   onTab: (tab: Tab) => void;
   env: EnvironmentReport | null;
   issueCount: number;
+  modUpdateCount: number;
   refreshing: boolean;
   onRefresh: () => void;
   onManualLaunch: () => void;
 }) {
+  const badgeFor = (id: Tab) =>
+    id === "settings" ? issueCount : id === "mods" ? modUpdateCount : 0;
+
   return (
     <header className="shrink-0 flex items-center gap-4 px-4 h-12 border-b border-trim bg-surface">
       <div className="flex items-center gap-2.5 pr-2">
@@ -61,9 +66,16 @@ export function TopBar({
           >
             <Icon name={entry.icon} />
             {entry.label}
-            {entry.id === "settings" && issueCount > 0 && (
-              <span className="ml-0.5 min-w-4 h-4 px-1 rounded-full bg-accent text-white text-[10px] leading-4 text-center">
-                {issueCount}
+            {badgeFor(entry.id) > 0 && (
+              <span
+                className="ml-0.5 min-w-4 h-4 px-1 rounded-full bg-accent text-white text-[10px] leading-4 text-center"
+                title={
+                  entry.id === "mods"
+                    ? `${modUpdateCount} mod update(s) available`
+                    : `${issueCount} setup item(s) need attention`
+                }
+              >
+                {badgeFor(entry.id)}
               </span>
             )}
           </button>

@@ -392,6 +392,12 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
             checked={config.killRunningDayz}
             onChange={(killRunningDayz) => save({ killRunningDayz })}
           />
+          <CheckRow
+            label="Hide to the system tray once the game starts"
+            hint="The launcher keeps running in the tray; click its icon to bring it back."
+            checked={config.hideToTrayOnLaunch}
+            onChange={(hideToTrayOnLaunch) => save({ hideToTrayOnLaunch })}
+          />
 
           <div className="border border-trim rounded-md divide-y divide-trim/40">
             {config.launchOptions.map((option) => (

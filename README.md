@@ -31,8 +31,14 @@ game with the right arguments — without the terminal.
 **Mods**
 - Every installed mod with its size, whether the launcher or a Steam
   subscription installed it, and whether its symlink is intact
+- Checks the Steam Workshop for newer versions and flags the stale ones, with a
+  count on the Mods tab, a banner, and a per-mod marker
 - Multi-select update and delete, delete only launcher-installed mods, remove
   all symlinks, and relink everything
+
+**Tray**
+- Lives in the system tray; the menu shows, hides and quits the launcher
+- Optionally hides itself to the tray once the game is running (off by default)
 
 **Settings**
 - System report: Steam, steamcmd, DayZ install and `vm.max_map_count`, with a
