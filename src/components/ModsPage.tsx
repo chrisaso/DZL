@@ -2,8 +2,9 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMemo, useState } from "react";
 import { useMods } from "../hooks/useMods";
 import type { ModUpdateStatus } from "../types/launcher";
+import { describeError } from "../utils/errors";
 import { formatBytes, timeAgo } from "../utils/format";
-import { Banner, Button, Icon, ProgressBar, Spinner, TextInput } from "./ui";
+import { Banner, Button, Code, Icon, ProgressBar, Spinner, TextInput } from "./ui";
 
 interface ModsPageProps {
   active: boolean;
@@ -212,9 +213,15 @@ export function ModsPage({
 
       {error && (
         <div className="px-5 py-3">
-          <Banner tone="danger" title="Mod operation failed">
-            {error}
-          </Banner>
+          {(() => {
+            const friendly = describeError(error);
+            return (
+              <Banner tone="danger" title={friendly.title}>
+                {friendly.detail}
+                {friendly.command && <Code>{friendly.command}</Code>}
+              </Banner>
+            );
+          })()}
         </div>
       )}
 

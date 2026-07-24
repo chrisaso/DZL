@@ -195,6 +195,49 @@ pub(crate) fn is_download_failure(line: &str) -> bool {
     lower.contains("error!") && lower.contains("download item")
 }
 
+/// True when a line shows steamcmd could not authenticate.
+pub(crate) fn is_login_failure(line: &str) -> bool {
+    let lower = line.to_lowercase();
+    lower.contains("cached credentials not found")
+        || lower.contains("no cached credentials")
+        || lower.contains("invalid password")
+        || lower.contains("login failure")
+}
+
+/// steamcmd exits 5 on any login problem, which is by far the most common way
+/// a download fails: the account name is set in the launcher, but nobody has
+/// done the one-time terminal sign-in that caches the token.
+const EXIT_LOGIN_FAILURE: i32 = 5;
+
+/// Turns a steamcmd failure into something a user can act on. The leading
+/// code is machine-readable so the UI can offer the right fix.
+pub(crate) fn classify_failure(
+    exit_code: i32,
+    saw_login_failure: bool,
+    reported_error: Option<&str>,
+    login: &str,
+    workshop_id: &str,
+) -> String {
+    if saw_login_failure || exit_code == EXIT_LOGIN_FAILURE {
+        return format!(
+            "steamcmd-login-required: steamcmd is not signed in as {}. Run \
+             `steamcmd +login {}` once in a terminal, finish any Steam Guard \
+             prompt, then try again.",
+            login, login
+        );
+    }
+
+    if let Some(error) = reported_error {
+        return format!("steamcmd-failed: {}", error);
+    }
+
+    format!(
+        "steamcmd-failed: exit {} while downloading {}. Check that the mod is \
+         still on the Workshop and that you have disk space.",
+        exit_code, workshop_id
+    )
+}
+
 /// Turns a raw steamcmd chunk into displayable lines. steamcmd redraws
 /// progress with carriage returns, so a single `\n` line can carry many
 /// updates — keep the last one.
@@ -335,6 +378,7 @@ where
 
     let mut failure: Option<String> = None;
     let mut reported_path: Option<String> = None;
+    let mut login_failed = false;
 
     if let Some(stdout) = child.stdout.take() {
         let mut lines = tokio::io::BufReader::new(stdout).lines();
@@ -346,6 +390,9 @@ where
             if is_download_failure(line) {
                 failure = Some(line.to_string());
             }
+            if is_login_failure(line) {
+                login_failed = true;
+            }
             if let Some(path) = parse_download_path(line) {
                 reported_path = Some(path);
             }
@@ -355,14 +402,13 @@ where
 
     let status = child.wait().await.map_err(|e| e.to_string())?;
 
-    if let Some(err) = failure {
-        return Err(format!("steamcmd-failed: {}", err));
-    }
-    if !status.success() {
-        return Err(format!(
-            "steamcmd-failed: exit {} while downloading {}",
+    if failure.is_some() || login_failed || !status.success() {
+        return Err(classify_failure(
             status.code().unwrap_or(-1),
-            workshop_id
+            login_failed,
+            failure.as_deref(),
+            login,
+            workshop_id,
         ));
     }
 
@@ -443,6 +489,55 @@ mod tests {
             "ERROR! Download item 12345 failed (Failure)."
         ));
         assert!(!is_download_failure("Success. Downloaded item 12345"));
+    }
+
+    #[test]
+    fn login_failure_lines_are_detected() {
+        // The exact line steamcmd prints with no cached token.
+        assert!(is_login_failure("Cached credentials not found."));
+        assert!(is_login_failure(
+            "FAILED (No cached credentials and @NoPromptForPassword is set)"
+        ));
+        assert!(is_login_failure("FAILED (Invalid Password)"));
+        assert!(!is_login_failure("Downloading item 12345 ..."));
+    }
+
+    #[test]
+    fn exit_five_is_reported_as_a_login_problem_with_the_fix() {
+        let message = classify_failure(5, false, None, "adaptiq_", "3457620661");
+        assert!(message.starts_with("steamcmd-login-required:"));
+        assert!(
+            message.contains("steamcmd +login adaptiq_"),
+            "the message must contain the exact command to run: {}",
+            message
+        );
+    }
+
+    #[test]
+    fn a_login_failure_line_wins_over_the_exit_code() {
+        let message = classify_failure(1, true, None, "someone", "42");
+        assert!(message.starts_with("steamcmd-login-required:"));
+    }
+
+    #[test]
+    fn other_failures_keep_steamcmds_own_message() {
+        let message = classify_failure(
+            8,
+            false,
+            Some("ERROR! Download item 42 failed (Failure)."),
+            "someone",
+            "42",
+        );
+        assert!(message.starts_with("steamcmd-failed:"));
+        assert!(message.contains("Download item 42 failed"));
+    }
+
+    #[test]
+    fn an_unexplained_exit_still_names_the_mod() {
+        let message = classify_failure(9, false, None, "someone", "777");
+        assert!(message.starts_with("steamcmd-failed:"));
+        assert!(message.contains("777"));
+        assert!(!message.contains("+login"), "not a login problem");
     }
 
     #[test]

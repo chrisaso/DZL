@@ -2,6 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 import type { JoinFlowState } from "../hooks/useJoinServer";
 import type { ModRef } from "../types/launcher";
+import { describeError } from "../utils/errors";
 import { formatMap } from "../utils/format";
 import {
   Banner,
@@ -340,8 +341,7 @@ export function JoinModal({
     );
   }
 
-  const [code, ...rest] = state.message.split(":");
-  const detail = rest.join(":").trim();
+  const friendly = describeError(state.message);
 
   return (
     <Modal
@@ -351,19 +351,21 @@ export function JoinModal({
       footer={
         <>
           <Button onClick={onDismiss}>Close</Button>
-          <Button variant="secondary" onClick={onOpenSettings}>
-            Settings
-          </Button>
+          {friendly.settings && (
+            <Button variant="secondary" onClick={onOpenSettings}>
+              Settings
+            </Button>
+          )}
           <Button variant="primary" onClick={onRetry}>
             Try again
           </Button>
         </>
       }
     >
-      <Banner tone="danger" title="Could not join">
-        {detail || state.message}
+      <Banner tone="danger" title={friendly.title}>
+        {friendly.detail}
+        {friendly.command && <Code>{friendly.command}</Code>}
       </Banner>
-      {detail && <Code>{code}</Code>}
     </Modal>
   );
 }
