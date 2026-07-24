@@ -28,21 +28,29 @@ pub struct SniTray {
     icon: Vec<ksni::Icon>,
 }
 
+/// The window icon Tauri hands back is only 32×32, which looks soft on a
+/// HiDPI bar, so the larger source icon is embedded too and offered alongside
+/// it. Hosts pick whichever size suits their panel.
+const ICON_128: &[u8] = include_bytes!("../icons/128x128.png");
+
+fn to_pixmap(image: &tauri::image::Image<'_>) -> ksni::Icon {
+    ksni::Icon {
+        width: image.width() as i32,
+        height: image.height() as i32,
+        data: rgba_to_argb(image.rgba()),
+    }
+}
+
 impl SniTray {
     fn new(app: AppHandle) -> Self {
-        // Hosts prefer a themed icon name, which resolves once the app is
-        // installed. The embedded pixmap covers running straight from the
-        // AppImage, where nothing is in the icon theme yet.
-        let icon = app
-            .default_window_icon()
-            .map(|image| {
-                vec![ksni::Icon {
-                    width: image.width() as i32,
-                    height: image.height() as i32,
-                    data: rgba_to_argb(image.rgba()),
-                }]
-            })
-            .unwrap_or_default();
+        let mut icon = Vec::new();
+
+        if let Ok(large) = tauri::image::Image::from_bytes(ICON_128) {
+            icon.push(to_pixmap(&large));
+        }
+        if let Some(window_icon) = app.default_window_icon() {
+            icon.push(to_pixmap(window_icon));
+        }
 
         Self { app, icon }
     }
@@ -57,8 +65,12 @@ impl ksni::Tray for SniTray {
         "DZL".into()
     }
 
+    /// Deliberately empty. Hosts that see a name look it up in the icon theme
+    /// and draw a "missing icon" placeholder when it is not there — which is
+    /// exactly what happens before the app is installed, or when the host has
+    /// not rescanned the theme. The embedded pixmap below always works.
     fn icon_name(&self) -> String {
-        "dzl".into()
+        String::new()
     }
 
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
@@ -69,8 +81,8 @@ impl ksni::Tray for SniTray {
         ksni::ToolTip {
             title: "DZL".into(),
             description: "DayZ launcher".into(),
-            icon_name: "dzl".into(),
-            icon_pixmap: Vec::new(),
+            icon_name: String::new(),
+            icon_pixmap: self.icon.clone(),
         }
     }
 

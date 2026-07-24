@@ -314,9 +314,11 @@ export function Code({ children }: { children: ReactNode }) {
     setTimeout(() => setCopied(false), 1600);
   };
 
+  // Sized to the content rather than the container, so the button sits right
+  // beside the command instead of drifting to the far edge of a wide panel.
   return (
-    <div className="relative mt-1.5 group/code">
-      <code className="block px-2 py-1.5 pr-16 rounded bg-base border border-trim font-mono text-xs text-secondary break-all select-all">
+    <div className="mt-1.5 inline-flex max-w-full items-stretch rounded border border-trim bg-base overflow-hidden align-top">
+      <code className="px-2 py-1.5 font-mono text-xs text-secondary break-all select-all">
         {children}
       </code>
       {text && (
@@ -324,10 +326,10 @@ export function Code({ children }: { children: ReactNode }) {
           onClick={copy}
           title="Copy to clipboard"
           aria-label={copied ? "Copied" : "Copy to clipboard"}
-          className={`absolute top-1 right-1 inline-flex items-center gap-1 px-1.5 py-1 rounded text-[10px] font-medium border transition-colors cursor-pointer ${
+          className={`shrink-0 inline-flex items-center gap-1 px-2 border-l text-[10px] font-medium transition-colors cursor-pointer ${
             copied
               ? "bg-good/15 text-good border-good/30"
-              : "bg-elevated text-secondary border-trim hover:text-primary"
+              : "bg-elevated text-secondary border-trim hover:text-primary hover:bg-overlay"
           }`}
         >
           <Icon name={copied ? "check" : "copy"} size={10} />
