@@ -41,6 +41,8 @@ export type JoinFlowState =
 export interface JoinOptions {
   password?: string;
   updateMods?: boolean;
+  /** Whether Steam may be shut down while mods download. */
+  closeSteam?: boolean;
 }
 
 export function toModRefs(server: Server): ModRef[] {
@@ -183,6 +185,7 @@ export function useJoinServer(options?: {
         mods: toModRefs(server),
         password: joinOptions?.password ?? null,
         updateMods: joinOptions?.updateMods ?? null,
+        closeSteam: joinOptions?.closeSteam ?? null,
       };
 
       try {

@@ -55,12 +55,16 @@ pub struct JoinRequirements {
     pub steam_login_needed: bool,
     pub update_mods_on_join: bool,
     pub max_map_count_ok: bool,
+    /// Whether closing Steam for the download is even a question right now.
+    pub steam_running: bool,
+    pub close_steam_preference: bool,
 }
 
 pub(crate) fn check_requirements_logic(
     config: &AppConfig,
     mods: &[ModRef],
     max_map_count: u64,
+    steam_is_running: bool,
 ) -> JoinRequirements {
     let steam_path = config
         .steam_path
@@ -99,13 +103,15 @@ pub(crate) fn check_requirements_logic(
         steam_login: login,
         update_mods_on_join: config.update_mods_on_join,
         max_map_count_ok: max_map_count == 0 || max_map_count >= REQUIRED_MAX_MAP_COUNT,
+        steam_running: steam_is_running,
+        close_steam_preference: config.close_steam_for_downloads,
     }
 }
 
 #[tauri::command]
 pub fn check_join_requirements(app: tauri::AppHandle, mods: Vec<ModRef>) -> JoinRequirements {
     let config = read_config(&app);
-    check_requirements_logic(&config, &mods, read_max_map_count())
+    check_requirements_logic(&config, &mods, read_max_map_count(), steam_running())
 }
 
 /// Relative link target for a mod, matching the `ln -sr` style links dayz-ctl
@@ -175,6 +181,10 @@ pub struct JoinRequest {
     pub password: Option<String>,
     /// Overrides the stored `updateModsOnJoin` preference for this launch.
     pub update_mods: Option<bool>,
+    /// Overrides the stored `closeSteamForDownloads` preference for this
+    /// launch. Shutting Steam down is disruptive — it may be downloading
+    /// something else — so the user is asked rather than assumed.
+    pub close_steam: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -328,7 +338,11 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
                     .to_string()
             })?;
 
-        if config.close_steam_for_downloads && steam_running() {
+        let close_steam = request
+            .close_steam
+            .unwrap_or(config.close_steam_for_downloads);
+
+        if close_steam && steam_running() {
             emit(app, "closing-steam", None, 0, 0, None);
             crate::commands::system::shutdown_steam().await?;
         }
@@ -359,7 +373,7 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
             mark_managed(&steam_path, &m.workshop_id);
         }
 
-        if config.close_steam_for_downloads {
+        if close_steam {
             emit(app, "starting-steam", None, 0, 0, None);
             crate::commands::system::start_steam().await?;
         }
@@ -430,6 +444,8 @@ pub async fn launch_game(app: tauri::AppHandle, mods: Vec<ModRef>) -> Result<(),
         mods,
         password: None,
         update_mods: Some(false),
+        // Nothing is downloaded for a plain launch, so Steam is left alone.
+        close_steam: Some(false),
     };
     join_server(app, request).await
 }
@@ -495,7 +511,7 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let result = check_requirements_logic(&config, &mods(&["100", "200"]), 1_048_576);
+        let result = check_requirements_logic(&config, &mods(&["100", "200"]), 1_048_576, false);
 
         assert_eq!(result.missing_mods.len(), 1);
         assert_eq!(result.missing_mods[0].workshop_id, "200");
@@ -519,11 +535,11 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let all_present = check_requirements_logic(&config, &mods(&["100"]), 1_048_576);
+        let all_present = check_requirements_logic(&config, &mods(&["100"]), 1_048_576, false);
         assert!(!all_present.steam_login_needed);
         assert!(!all_present.player_name_needed);
 
-        let needs_download = check_requirements_logic(&config, &mods(&["100", "999"]), 1_048_576);
+        let needs_download = check_requirements_logic(&config, &mods(&["100", "999"]), 1_048_576, false);
         assert!(needs_download.steam_login_needed);
 
         fs::remove_dir_all(&base).unwrap();
@@ -539,7 +555,7 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let result = check_requirements_logic(&config, &mods(&["999"]), 1_048_576);
+        let result = check_requirements_logic(&config, &mods(&["999"]), 1_048_576, false);
         assert_eq!(result.steam_login, None);
         assert!(
             result.steam_login_needed,
@@ -552,10 +568,10 @@ mod tests {
     #[test]
     fn check_requirements_flags_low_max_map_count() {
         let config = AppConfig::default();
-        let low = check_requirements_logic(&config, &[], 65_530);
+        let low = check_requirements_logic(&config, &[], 65_530, false);
         assert!(!low.max_map_count_ok);
 
-        let unknown = check_requirements_logic(&config, &[], 0);
+        let unknown = check_requirements_logic(&config, &[], 0, false);
         assert!(unknown.max_map_count_ok, "unknown value must not nag");
     }
 

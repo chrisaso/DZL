@@ -1,10 +1,20 @@
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMemo, useState } from "react";
 import { useMods } from "../hooks/useMods";
 import type { ModUpdateStatus } from "../types/launcher";
 import { describeError } from "../utils/errors";
 import { formatBytes, timeAgo } from "../utils/format";
-import { Banner, Button, Code, Icon, ProgressBar, Spinner, TextInput } from "./ui";
+import {
+  Banner,
+  Button,
+  Code,
+  Icon,
+  Modal,
+  ProgressBar,
+  Spinner,
+  TextInput,
+} from "./ui";
 
 interface ModsPageProps {
   active: boolean;
@@ -42,6 +52,8 @@ export function ModsPage({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** Mods waiting on the user's answer about closing Steam. */
+  const [pendingUpdate, setPendingUpdate] = useState<string[] | null>(null);
 
   const mods = useMemo(() => {
     if (!library) return [];
@@ -70,13 +82,61 @@ export function ModsPage({
   const disabled = busy !== null;
 
   /** Re-checks the Workshop afterwards so the flags clear on success. */
-  const runUpdate = async (workshopIds: string[]) => {
-    const ok = await updateMods(workshopIds);
+  const runUpdate = async (workshopIds: string[], closeSteam?: boolean) => {
+    setPendingUpdate(null);
+    const ok = await updateMods(workshopIds, closeSteam);
     if (ok) onCheckUpdates();
+  };
+
+  /**
+   * Downloads are more reliable with Steam closed, but shutting it down could
+   * interrupt anything else it is doing — so ask rather than decide.
+   */
+  const startUpdate = async (workshopIds: string[]) => {
+    if (workshopIds.length === 0) return;
+    const status = await invoke<{ steamRunning: boolean }>("get_system_status").catch(
+      () => ({ steamRunning: false }),
+    );
+
+    if (status.steamRunning) {
+      setPendingUpdate(workshopIds);
+    } else {
+      runUpdate(workshopIds);
+    }
   };
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      {pendingUpdate && (
+        <Modal
+          title="Close Steam while downloading?"
+          subtitle={`${pendingUpdate.length} mod${pendingUpdate.length === 1 ? "" : "s"} to update`}
+          onClose={() => setPendingUpdate(null)}
+          width="max-w-lg"
+          footer={
+            <>
+              <Button onClick={() => setPendingUpdate(null)}>Cancel</Button>
+              <Button onClick={() => runUpdate(pendingUpdate, false)}>
+                Keep Steam open
+              </Button>
+              <Button variant="primary" onClick={() => runUpdate(pendingUpdate, true)}>
+                Close Steam and update
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-secondary">
+            Steam is running. steamcmd and the Steam client fight over the same
+            download pipeline, so updates are more reliable with Steam closed —
+            but closing it will interrupt anything else Steam is doing, such as
+            another download.
+          </p>
+          <p className="text-xs text-muted mt-2">
+            Steam is started again once the update finishes.
+          </p>
+        </Modal>
+      )}
+
       <div className="px-5 py-3 border-b border-trim flex items-center gap-3 flex-wrap">
         <div className="w-56">
           <TextInput value={search} onChange={setSearch} placeholder="Filter mods…" />
@@ -130,7 +190,7 @@ export function ModsPage({
               <Button
                 variant="secondary"
                 disabled={disabled}
-                onClick={() => runUpdate(outdated.map((m) => m.workshopId))}
+                onClick={() => startUpdate(outdated.map((m) => m.workshopId))}
               >
                 <Icon name="download" />
                 Update all
@@ -164,7 +224,7 @@ export function ModsPage({
             <Button
               variant="secondary"
               disabled={disabled}
-              onClick={() => runUpdate([...selected])}
+              onClick={() => startUpdate([...selected])}
             >
               <Icon name="download" />
               Update

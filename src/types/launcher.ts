@@ -103,6 +103,9 @@ export interface JoinRequirements {
   steamLoginNeeded: boolean;
   updateModsOnJoin: boolean;
   maxMapCountOk: boolean;
+  /** Whether closing Steam for the download is even a question right now. */
+  steamRunning: boolean;
+  closeSteamPreference: boolean;
 }
 
 export interface JoinRequest {
@@ -111,6 +114,7 @@ export interface JoinRequest {
   mods: ModRef[];
   password?: string | null;
   updateMods?: boolean | null;
+  closeSteam?: boolean | null;
 }
 
 export interface JoinProgress {

@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
-import type { JoinFlowState } from "../hooks/useJoinServer";
+import type { JoinFlowState, JoinOptions } from "../hooks/useJoinServer";
 import type { ModRef } from "../types/launcher";
 import { describeError } from "../utils/errors";
 import { formatMap } from "../utils/format";
@@ -67,7 +67,7 @@ export function JoinModal({
   onFixMaxMapCount,
 }: {
   state: JoinFlowState;
-  onConfirm: (options?: { password?: string; updateMods?: boolean }) => void;
+  onConfirm: (options?: JoinOptions) => void;
   onDismiss: () => void;
   onRetry: () => void;
   onOpenSettings: () => void;
@@ -75,6 +75,7 @@ export function JoinModal({
 }) {
   const [password, setPassword] = useState("");
   const [updateMods, setUpdateMods] = useState(false);
+  const [closeSteam, setCloseSteam] = useState(true);
   const [fixing, setFixing] = useState(false);
 
   const server = "server" in state ? state.server : null;
@@ -85,7 +86,10 @@ export function JoinModal({
   }, [server?.endpoint.ip, server?.endpoint.port]);
 
   useEffect(() => {
-    if (state.kind === "confirm") setUpdateMods(state.requirements.updateModsOnJoin);
+    if (state.kind === "confirm") {
+      setUpdateMods(state.requirements.updateModsOnJoin);
+      setCloseSteam(state.requirements.closeSteamPreference);
+    }
   }, [state.kind]);
 
   if (state.kind === "idle") return null;
@@ -210,6 +214,7 @@ export function JoinModal({
                 onConfirm({
                   password: needsPassword ? password : undefined,
                   updateMods,
+                  closeSteam,
                 })
               }
             >
@@ -277,6 +282,17 @@ export function JoinModal({
               hint="Slower, but catches mods the server updated since you last played."
               checked={updateMods}
               onChange={setUpdateMods}
+            />
+          )}
+
+          {/* Only worth asking when something will actually be downloaded and
+              Steam is open to be closed. */}
+          {(missing.length > 0 || updateMods) && requirements.steamRunning && (
+            <CheckRow
+              label="Close Steam while mods download"
+              hint="steamcmd and Steam fight over the download pipeline, so downloads are more reliable with Steam closed. It is started again before the game launches — but anything else Steam is doing will be interrupted."
+              checked={closeSteam}
+              onChange={setCloseSteam}
             />
           )}
         </div>

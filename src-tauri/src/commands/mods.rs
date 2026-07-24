@@ -322,6 +322,9 @@ pub async fn update_mods(
     app: tauri::AppHandle,
     steam_path: Option<String>,
     workshop_ids: Vec<String>,
+    // Overrides the stored preference for this run; the UI asks when Steam is
+    // actually running rather than closing it behind the user's back.
+    close_steam: Option<bool>,
 ) -> Result<(), String> {
     let config = read_config(&app);
     let steam_path = resolve_steam_path(&app, steam_path)?;
@@ -351,7 +354,10 @@ pub async fn update_mods(
             );
         };
 
-    if config.close_steam_for_downloads && crate::commands::system::steam_running() {
+    let close_steam = close_steam.unwrap_or(config.close_steam_for_downloads);
+    let closed_steam = close_steam && crate::commands::system::steam_running();
+
+    if closed_steam {
         emit("closing-steam", None, 0, 0, None);
         crate::commands::system::shutdown_steam().await?;
     }
@@ -392,6 +398,11 @@ pub async fn update_mods(
         if let Err(e) = result {
             emit("error", Some(&e), current, total, None);
             invalidate_cache();
+            // Put Steam back even when the update fails — we closed it, so
+            // leaving the user without it would be rude.
+            if closed_steam {
+                let _ = crate::commands::system::start_steam().await;
+            }
             return Err(e);
         }
 
@@ -400,6 +411,12 @@ pub async fn update_mods(
     }
 
     invalidate_cache();
+
+    if closed_steam {
+        emit("starting-steam", None, total, total, None);
+        let _ = crate::commands::system::start_steam().await;
+    }
+
     emit("done", None, total, total, None);
     Ok(())
 }

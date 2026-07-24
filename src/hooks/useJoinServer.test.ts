@@ -50,6 +50,8 @@ function requirements(overrides: Partial<JoinRequirements> = {}): JoinRequiremen
     steamLoginNeeded: false,
     updateModsOnJoin: false,
     maxMapCountOk: true,
+    steamRunning: false,
+    closeSteamPreference: true,
     ...overrides,
   };
 }
@@ -183,7 +185,11 @@ describe("useJoinServer", () => {
     await waitFor(() => expect(result.current.state.kind).toBe("confirm"));
 
     await act(async () => {
-      result.current.confirm({ password: "hunter2", updateMods: true });
+      result.current.confirm({
+        password: "hunter2",
+        updateMods: true,
+        closeSteam: false,
+      });
     });
 
     await waitFor(() => expect(result.current.state.kind).toBe("done"));
@@ -194,9 +200,29 @@ describe("useJoinServer", () => {
         mods: [{ workshopId: "123456", name: "TestMod" }],
         password: "hunter2",
         updateMods: true,
+        // Declining to close Steam has to reach the backend, not be dropped.
+        closeSteam: false,
       },
     });
     expect(onLaunched).toHaveBeenCalledWith(mockServer);
+  });
+
+  it("leaves the Steam decision to the backend when not asked", async () => {
+    mockCommands({ check_join_requirements: requirements(), join_server: undefined });
+    const { result } = renderHook(() => useJoinServer());
+
+    act(() => result.current.startJoin(mockServer));
+    await waitFor(() => expect(result.current.state.kind).toBe("confirm"));
+
+    await act(async () => {
+      result.current.confirm();
+    });
+
+    await waitFor(() => expect(result.current.state.kind).toBe("done"));
+    const request = mockInvoke.mock.calls.find(
+      ([command]) => command === "join_server",
+    )?.[1] as { request: { closeSteam: boolean | null } };
+    expect(request.request.closeSteam).toBeNull();
   });
 
   it("surfaces a failed join as an error", async () => {
