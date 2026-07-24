@@ -139,18 +139,47 @@ export function Sidebar({
         </div>
 
         <div>
+          <Label>Perspective</Label>
+          <Select
+            value={filters.perspective}
+            onChange={(v) => updateFilter("perspective", v as Filters["perspective"])}
+            options={[
+              { value: "", label: "First & third person" },
+              { value: "first", label: "First person only" },
+              { value: "third", label: "Third person allowed" },
+            ]}
+          />
+        </div>
+
+        <div>
+          <Label>Mods</Label>
+          <Select
+            value={filters.mods}
+            onChange={(v) => updateFilter("mods", v as Filters["mods"])}
+            options={[
+              { value: "", label: "Modded & vanilla" },
+              { value: "modded", label: "Modded only" },
+              { value: "vanilla", label: "Vanilla only" },
+            ]}
+          />
+        </div>
+
+        <div>
+          <Label>Password</Label>
+          <Select
+            value={filters.password}
+            onChange={(v) => updateFilter("password", v as Filters["password"])}
+            options={[
+              { value: "", label: "Any" },
+              { value: "open", label: "Open servers" },
+              { value: "protected", label: "Password protected" },
+            ]}
+          />
+        </div>
+
+        <div>
           <Label>Options</Label>
           <div className="space-y-2.5">
-            <CheckRow
-              label="First person"
-              checked={filters.firstPersonOnly}
-              onChange={(v) => updateFilter("firstPersonOnly", v)}
-            />
-            <CheckRow
-              label="Third person"
-              checked={filters.thirdPersonOnly}
-              onChange={(v) => updateFilter("thirdPersonOnly", v)}
-            />
             <CheckRow
               label="Hide full servers"
               checked={filters.hideFull}
@@ -162,16 +191,6 @@ export function Sidebar({
               onChange={(v) => updateFilter("hideEmpty", v)}
             />
             <CheckRow
-              label="Modded only"
-              checked={filters.moddedOnly}
-              onChange={(v) => updateFilter("moddedOnly", v)}
-            />
-            <CheckRow
-              label="Vanilla only"
-              checked={filters.vanillaOnly}
-              onChange={(v) => updateFilter("vanillaOnly", v)}
-            />
-            <CheckRow
               label="BattlEye"
               checked={filters.battlEyeOnly}
               onChange={(v) => updateFilter("battlEyeOnly", v)}
@@ -180,16 +199,6 @@ export function Sidebar({
               label="VAC"
               checked={filters.vacOnly}
               onChange={(v) => updateFilter("vacOnly", v)}
-            />
-            <CheckRow
-              label="Password protected"
-              checked={filters.passwordProtected}
-              onChange={(v) => updateFilter("passwordProtected", v)}
-            />
-            <CheckRow
-              label="Hide passworded"
-              checked={filters.hidePassworded}
-              onChange={(v) => updateFilter("hidePassworded", v)}
             />
           </div>
         </div>

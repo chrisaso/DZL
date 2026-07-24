@@ -64,6 +64,98 @@ pub(crate) fn binary_exists(name: &str) -> bool {
         .is_some()
 }
 
+/// Variables an AppImage's AppRun injects so the bundled app finds its own
+/// libraries. They must never reach a child process: Steam's own Python dies
+/// with "Failed to import encodings module" when it inherits our PYTHONHOME,
+/// which silently kills the game a second after it starts.
+const APPIMAGE_INJECTED: &[&str] = &[
+    "LD_LIBRARY_PATH",
+    "LD_PRELOAD",
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "PERLLIB",
+    "GSETTINGS_SCHEMA_DIR",
+    "XDG_DATA_DIRS",
+    "QT_PLUGIN_PATH",
+    "GTK_PATH",
+    "GDK_PIXBUF_MODULE_FILE",
+    "GDK_PIXBUF_MODULEDIR",
+];
+
+/// Workarounds we apply to our own window that a game must not inherit.
+const LAUNCHER_ONLY: &[&str] = &["GDK_BACKEND", "WEBKIT_DISABLE_DMABUF_RENDERER"];
+
+/// Drops the entries that point inside the AppImage, keeping anything the user
+/// already had. Returns `None` when nothing worthwhile is left.
+pub(crate) fn strip_appdir_paths(value: &str, appdir: &str) -> Option<String> {
+    let kept: Vec<&str> = value
+        .split(':')
+        .filter(|part| !part.is_empty() && !part.starts_with(appdir))
+        .collect();
+
+    if kept.is_empty() {
+        None
+    } else {
+        Some(kept.join(":"))
+    }
+}
+
+/// Environment changes needed before launching an external program.
+/// `None` means remove the variable entirely.
+pub(crate) fn env_fixups_for(
+    appdir: Option<&str>,
+    get: impl Fn(&str) -> Option<String>,
+) -> Vec<(String, Option<String>)> {
+    let mut fixups: Vec<(String, Option<String>)> = LAUNCHER_ONLY
+        .iter()
+        .filter(|name| get(name).is_some())
+        .map(|name| (name.to_string(), None))
+        .collect();
+
+    let Some(appdir) = appdir.filter(|dir| !dir.is_empty()) else {
+        return fixups;
+    };
+
+    for name in APPIMAGE_INJECTED {
+        let Some(value) = get(name) else { continue };
+        if !value.contains(appdir) {
+            continue;
+        }
+        fixups.push((name.to_string(), strip_appdir_paths(&value, appdir)));
+    }
+
+    fixups
+}
+
+fn env_fixups() -> Vec<(String, Option<String>)> {
+    let appdir = std::env::var("APPDIR").ok();
+    env_fixups_for(appdir.as_deref(), |name| std::env::var(name).ok())
+}
+
+/// A command that will not poison its child with our AppImage's environment.
+pub(crate) fn external_command(program: &str) -> std::process::Command {
+    let mut command = std::process::Command::new(program);
+    for (name, value) in env_fixups() {
+        match value {
+            Some(value) => command.env(name, value),
+            None => command.env_remove(name),
+        };
+    }
+    command
+}
+
+/// Async twin of [`external_command`].
+pub(crate) fn external_command_async(program: &str) -> tokio::process::Command {
+    let mut command = tokio::process::Command::new(program);
+    for (name, value) in env_fixups() {
+        match value {
+            Some(value) => command.env(name, value),
+            None => command.env_remove(name),
+        };
+    }
+    command
+}
+
 pub(crate) fn read_max_map_count() -> u64 {
     std::fs::read_to_string("/proc/sys/vm/max_map_count")
         .ok()
@@ -224,7 +316,7 @@ pub async fn shutdown_steam() -> Result<(), String> {
         return Ok(());
     }
 
-    let _ = tokio::process::Command::new("steam")
+    let _ = external_command_async("steam")
         .arg("-shutdown")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -249,7 +341,7 @@ pub async fn start_steam() -> Result<(), String> {
         return Ok(());
     }
 
-    std::process::Command::new("steam")
+    external_command("steam")
         .args(["-nofriendsui", "-silent"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -395,6 +487,86 @@ mod tests {
     fn find_in_path_ignores_empty_segments() {
         assert_eq!(find_in_path("anything", ""), None);
         assert_eq!(find_in_path("anything", "::"), None);
+    }
+
+    #[test]
+    fn strip_appdir_paths_keeps_the_users_own_entries() {
+        assert_eq!(
+            strip_appdir_paths("/tmp/.mount_x/usr/lib:/usr/lib:/opt/lib", "/tmp/.mount_x"),
+            Some("/usr/lib:/opt/lib".to_string())
+        );
+    }
+
+    #[test]
+    fn strip_appdir_paths_removes_the_variable_when_only_ours_remain() {
+        assert_eq!(
+            strip_appdir_paths("/tmp/.mount_x/usr/:/tmp/.mount_x/usr/lib", "/tmp/.mount_x"),
+            None
+        );
+    }
+
+    #[test]
+    fn appimage_python_paths_are_removed_for_children() {
+        // Exactly what an AppImage AppRun exports; Steam's Python dies on it.
+        let env = |name: &str| match name {
+            "PYTHONHOME" => Some("/tmp/.mount_dzl/usr/".to_string()),
+            "PYTHONPATH" => Some("/tmp/.mount_dzl/usr/share/pyshared/:".to_string()),
+            "LD_LIBRARY_PATH" => Some("/tmp/.mount_dzl/usr/lib/:/usr/lib".to_string()),
+            _ => None,
+        };
+
+        let fixups = env_fixups_for(Some("/tmp/.mount_dzl"), env);
+
+        assert_eq!(
+            fixups
+                .iter()
+                .find(|(name, _)| name == "PYTHONHOME")
+                .map(|(_, v)| v.clone()),
+            Some(None),
+            "PYTHONHOME must be removed outright"
+        );
+        assert_eq!(
+            fixups
+                .iter()
+                .find(|(name, _)| name == "LD_LIBRARY_PATH")
+                .map(|(_, v)| v.clone()),
+            Some(Some("/usr/lib".to_string())),
+            "the user's own library path must survive"
+        );
+    }
+
+    #[test]
+    fn launcher_workarounds_are_never_passed_to_the_game() {
+        let env = |name: &str| match name {
+            "GDK_BACKEND" => Some("x11".to_string()),
+            "WEBKIT_DISABLE_DMABUF_RENDERER" => Some("1".to_string()),
+            _ => None,
+        };
+
+        let fixups = env_fixups_for(None, env);
+        assert_eq!(fixups.len(), 2);
+        assert!(fixups.iter().all(|(_, value)| value.is_none()));
+    }
+
+    #[test]
+    fn outside_an_appimage_nothing_else_is_touched() {
+        let env = |name: &str| match name {
+            "LD_LIBRARY_PATH" => Some("/usr/lib".to_string()),
+            _ => None,
+        };
+        assert!(env_fixups_for(None, env).is_empty());
+    }
+
+    #[test]
+    fn variables_untouched_by_the_appimage_are_left_alone() {
+        let env = |name: &str| match name {
+            "XDG_DATA_DIRS" => Some("/usr/share:/usr/local/share".to_string()),
+            _ => None,
+        };
+        assert!(
+            env_fixups_for(Some("/tmp/.mount_dzl"), env).is_empty(),
+            "a value with no AppImage paths needs no fixup"
+        );
     }
 
     #[test]

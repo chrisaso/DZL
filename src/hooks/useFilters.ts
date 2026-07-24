@@ -16,16 +16,18 @@ export interface Filters {
   /** "" any, "l" Linux host, "w" Windows host. */
   platform: "" | "l" | "w";
   timeOfDay: "" | "day" | "night";
+  /// Mutually exclusive choices are single values rather than pairs of
+  /// checkboxes: ticking both "first person" and "third person" could only
+  /// ever match nothing, which reads as a broken filter.
+  perspective: "" | "first" | "third";
+  mods: "" | "modded" | "vanilla";
+  password: "" | "protected" | "open";
+  /// These two are independent: together they show partly-filled servers.
   hideFull: boolean;
   hideEmpty: boolean;
-  firstPersonOnly: boolean;
-  thirdPersonOnly: boolean;
-  moddedOnly: boolean;
-  vanillaOnly: boolean;
+  /// A server can run both, so these stack rather than conflict.
   battlEyeOnly: boolean;
   vacOnly: boolean;
-  passwordProtected: boolean;
-  hidePassworded: boolean;
 }
 
 export type SortKey = "name" | "map" | "players" | "time" | "mods";
@@ -40,16 +42,13 @@ const DEFAULT_FILTERS: Filters = {
   shard: "",
   platform: "",
   timeOfDay: "",
+  perspective: "",
+  mods: "",
+  password: "",
   hideFull: false,
   hideEmpty: false,
-  firstPersonOnly: false,
-  thirdPersonOnly: false,
-  moddedOnly: false,
-  vanillaOnly: false,
   battlEyeOnly: false,
   vacOnly: false,
-  passwordProtected: false,
-  hidePassworded: false,
 };
 
 /** Daytime is 06:00–18:00 in game time, matching dayz-ctl's filter. */
@@ -198,29 +197,29 @@ export function useFilters(
     if (filters.hideEmpty) {
       result = result.filter((s) => s.players > 0);
     }
-    if (filters.firstPersonOnly) {
-      result = result.filter((s) => s.firstPersonOnly);
+    if (filters.perspective) {
+      result =
+        filters.perspective === "first"
+          ? result.filter((s) => s.firstPersonOnly)
+          : result.filter((s) => !s.firstPersonOnly);
     }
-    if (filters.thirdPersonOnly) {
-      result = result.filter((s) => !s.firstPersonOnly);
+    if (filters.mods) {
+      result =
+        filters.mods === "modded"
+          ? result.filter((s) => s.mods.length > 0)
+          : result.filter((s) => s.mods.length === 0);
     }
-    if (filters.moddedOnly) {
-      result = result.filter((s) => s.mods.length > 0);
-    }
-    if (filters.vanillaOnly) {
-      result = result.filter((s) => s.mods.length === 0);
+    if (filters.password) {
+      result =
+        filters.password === "protected"
+          ? result.filter((s) => s.password)
+          : result.filter((s) => !s.password);
     }
     if (filters.battlEyeOnly) {
       result = result.filter((s) => s.battlEye);
     }
     if (filters.vacOnly) {
       result = result.filter((s) => s.vac);
-    }
-    if (filters.passwordProtected) {
-      result = result.filter((s) => s.password);
-    }
-    if (filters.hidePassworded) {
-      result = result.filter((s) => !s.password);
     }
 
     return [...result].sort((a, b) => {

@@ -163,7 +163,7 @@ pub async fn check_steamcmd_login(login: Option<String>) -> LoginStatus {
 
     let run = tokio::time::timeout(
         std::time::Duration::from_secs(120),
-        tokio::process::Command::new("steamcmd")
+        crate::commands::system::external_command_async("steamcmd")
             .args(&args)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
@@ -410,7 +410,7 @@ where
         "+quit".to_string(),
     ]);
 
-    let mut child = tokio::process::Command::new("steamcmd")
+    let mut child = crate::commands::system::external_command_async("steamcmd")
         .args(&args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())

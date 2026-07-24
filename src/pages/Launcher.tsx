@@ -65,6 +65,15 @@ export function Launcher() {
     [query],
   );
 
+  // `force` skips the ping cache — an explicit refresh should never hand back
+  // the reading it took a minute ago.
+  const handleRefreshPing = useCallback(
+    async (ip: string, port: number) => {
+      await query([{ ip, port }], true);
+    },
+    [query],
+  );
+
   // Everything the user needs to fix before the launcher is fully usable. The
   // Settings page renders the same list in full, per section.
   const issues = useMemo(() => collectSetupIssues(config, env), [config, env]);
@@ -136,6 +145,7 @@ export function Launcher() {
           onJoin={join.startJoin}
           queryResults={results}
           onVisibleChange={handleVisibleChange}
+          onRefreshPing={handleRefreshPing}
           installedMods={installedMods}
         />
       )}

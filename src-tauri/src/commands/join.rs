@@ -252,7 +252,7 @@ pub(crate) fn build_launch_command(
 }
 
 fn spawn_steam(args: &[String]) -> Result<(), String> {
-    std::process::Command::new("steam")
+    crate::commands::system::external_command("steam")
         .args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

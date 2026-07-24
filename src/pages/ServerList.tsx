@@ -126,6 +126,7 @@ export function ServerList({
   onJoin,
   queryResults,
   onVisibleChange,
+  onRefreshPing,
   installedMods,
 }: {
   favorites: Set<string>;
@@ -135,6 +136,8 @@ export function ServerList({
   onJoin: (server: Server) => void;
   queryResults: Map<string, QueryResult>;
   onVisibleChange: (servers: Server[]) => void;
+  /** Re-queries one server's live data, ignoring the ping cache. */
+  onRefreshPing: (ip: string, port: number) => Promise<void>;
   installedMods: Set<string>;
 }) {
   const { servers, loading, error, fetchServers, refreshServer } = useServerStore();
@@ -167,6 +170,16 @@ export function ServerList({
   const handleSelect = useCallback(
     (id: string) => setSelectedId((prev) => (prev === id ? null : id)),
     [],
+  );
+
+  // Refreshing a row has to update everything that row shows: the master-list
+  // record (players, time, version, mods) and the live ping, which is cached
+  // separately and would otherwise stay stale.
+  const handleRefreshServer = useCallback(
+    async (ip: string, port: number) => {
+      await Promise.all([refreshServer(ip, port), onRefreshPing(ip, port)]);
+    },
+    [refreshServer, onRefreshPing],
   );
 
   // A favourite or recently played server that has dropped off the master list
@@ -207,7 +220,7 @@ export function ServerList({
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={setSort}
-              onRefresh={refreshServer}
+              onRefresh={handleRefreshServer}
               onJoin={onJoin}
               queryResults={queryResults}
               onVisibleChange={onVisibleChange}
@@ -222,7 +235,7 @@ export function ServerList({
             isFavorite={favorites.has(serverId(selectedServer))}
             onFavoriteToggle={toggleFavorite}
             onRefresh={() =>
-              refreshServer(
+              handleRefreshServer(
                 selectedServer.endpoint.ip,
                 selectedServer.endpoint.port,
               )

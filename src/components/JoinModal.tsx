@@ -335,7 +335,7 @@ export function JoinModal({
       >
         <div className="flex items-center gap-2 text-sm text-good py-3">
           <Icon name="check" size={16} />
-          DayZ is starting — see you in Chernarus.
+          DayZ is starting{server ? ` — see you on ${formatMap(server.map)}` : ""}.
         </div>
       </Modal>
     );
