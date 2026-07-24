@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- DZL mark: a heavy geometric Z on the launcher's accent red.
+       Deliberately plain — the icon has to stay legible at 16px in a system
+       tray, where any surface detail turns into noise. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e85b5b"/>
+      <stop offset="1" stop-color="#b83c3c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="114" fill="url(#tile)"/>
+
+  <!-- Inner hairline: reads as depth on large renders, vanishes when tiny. -->
+  <rect x="22" y="22" width="468" height="468" rx="94"
+        fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="4"/>
+
+  <path fill="#ffffff"
+        d="M112 128 H400 V200 L252 312 H400 V384 H112 V312 L260 200 H112 Z"/>
+</svg>

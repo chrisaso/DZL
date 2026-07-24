@@ -1,4 +1,5 @@
 import type { EnvironmentReport } from "../types/launcher";
+import { Logo } from "./Logo";
 import { Button, Icon, Spinner } from "./ui";
 
 export type Tab = "servers" | "mods" | "settings";
@@ -45,9 +46,7 @@ export function TopBar({
   return (
     <header className="shrink-0 flex items-center gap-4 px-4 h-12 border-b border-trim bg-surface">
       <div className="flex items-center gap-2.5 pr-2">
-        <div className="w-6 h-6 rounded-md bg-accent flex items-center justify-center text-white font-bold text-xs leading-none select-none">
-          Z
-        </div>
+        <Logo size={24} />
         <span className="font-semibold text-sm tracking-wide text-primary">
           DZL
         </span>

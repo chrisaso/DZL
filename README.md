@@ -121,11 +121,15 @@ EOF
 ### Wayland
 
 WebKitGTK crashes at startup on a Wayland session
-(`Error 71 (Protocol error)`) and renders blank on some GPUs, so the app puts
-itself on XWayland and disables the DMA-BUF renderer automatically. Both are
-only applied when you have not set `GDK_BACKEND` or
-`WEBKIT_DISABLE_DMABUF_RENDERER` yourself, so `GDK_BACKEND=wayland dzl`
-still overrides it.
+(`Error 71 (Protocol error)`) and renders a blank window on some GPUs, so the
+app puts itself on XWayland and disables the DMA-BUF renderer before GTK
+initialises.
+
+Desktop sessions usually export a backend *priority list* like
+`GDK_BACKEND=wayland,x11,*`. That is the session stating a preference, not a
+demand for this app, so a list is still overridden — otherwise the window comes
+up blank when launched from the application menu. A single explicit value is
+honoured, so `GDK_BACKEND=wayland dzl` does what it says.
 
 ## Development
 
