@@ -90,9 +90,36 @@ fails on current Arch: linuxdeploy's bundled `strip` cannot read libraries with
 AppImage uses the host's copy. That is fine on any machine that runs Steam,
 but it is less portable than an AppImage built on an older distro.
 
-If the window comes up blank, launch it with
-`WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11` — the same variables the dev
-script sets.
+### Desktop entry
+
+To get it in your application menu:
+
+```sh
+mkdir -p ~/.local/bin ~/.local/share/applications
+cp src-tauri/target/release/bundle/appimage/zed-launcher_0.1.0_amd64.AppImage \
+   ~/.local/bin/zed-launcher
+chmod +x ~/.local/bin/zed-launcher
+
+cat > ~/.local/share/applications/zed-launcher.desktop <<'EOF'
+[Desktop Entry]
+Name=ZedLauncher
+Comment=DayZ server browser and mod launcher
+Exec=/home/YOUR_USER/.local/bin/zed-launcher
+Icon=steam_icon_221100
+Terminal=false
+Type=Application
+Categories=Game;
+EOF
+```
+
+### Wayland
+
+WebKitGTK crashes at startup on a Wayland session
+(`Error 71 (Protocol error)`) and renders blank on some GPUs, so the app puts
+itself on XWayland and disables the DMA-BUF renderer automatically. Both are
+only applied when you have not set `GDK_BACKEND` or
+`WEBKIT_DISABLE_DMABUF_RENDERER` yourself, so `GDK_BACKEND=wayland zed-launcher`
+still overrides it.
 
 ## Development
 
