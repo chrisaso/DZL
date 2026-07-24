@@ -7,7 +7,7 @@
 ///
 /// Running through XWayland avoids both, so set that up before GTK initialises
 /// — but only when the user has not chosen a backend themselves, so
-/// `GDK_BACKEND=wayland zed-launcher` still does what it says.
+/// `GDK_BACKEND=wayland dzl` still does what it says.
 #[cfg(target_os = "linux")]
 fn apply_linux_rendering_workarounds() {
     let on_wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
@@ -27,5 +27,5 @@ fn main() {
     #[cfg(target_os = "linux")]
     apply_linux_rendering_workarounds();
 
-    zed_launcher_lib::run()
+    dzl_lib::run()
 }

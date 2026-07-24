@@ -12,7 +12,7 @@ export function deduplicateServers(servers: Server[]): Server[] {
   });
 }
 
-const CACHE_KEY = "zed-server-cache";
+const CACHE_KEY = "dzl-server-cache";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 interface CacheEntry {

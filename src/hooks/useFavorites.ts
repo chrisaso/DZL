@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 
-const STORAGE_KEY = "zed-favorites";
+const STORAGE_KEY = "dzl-favorites";
 
 function load(): Set<string> {
   try {

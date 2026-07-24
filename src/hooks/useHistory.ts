@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import type { HistoryEntry } from "../types/launcher";
 import type { Server } from "../types/server";
 
-const STORAGE_KEY = "zed-history";
+const STORAGE_KEY = "dzl-history";
 export const HISTORY_LIMIT = 10;
 
 function load(): HistoryEntry[] {

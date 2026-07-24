@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "zed-launcher",
+  "productName": "DZL",
   "version": "0.1.0",
-  "identifier": "com.zedlauncher.app",
+  "identifier": "com.dzl.launcher",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "zed-launcher",
+        "title": "DZL",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
@@ -25,13 +25,19 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm"],
+    "targets": [
+      "deb",
+      "rpm"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "category": "Game",
+    "shortDescription": "DayZ launcher for Linux",
+    "longDescription": "Browse DayZ servers, install the mods a server needs, and launch the game."
   }
 }

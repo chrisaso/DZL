@@ -40,13 +40,13 @@ fn toggle_window<R: Runtime>(app: &AppHandle<R>) {
 }
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show ZedLauncher", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "Show DZL", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "hide", "Hide to tray", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id(WINDOW_LABEL)
-        .tooltip("ZedLauncher")
+        .tooltip("DZL")
         .menu(&menu)
         // The menu belongs on right-click; left-click toggles the window on the
         // platforms that report clicks at all.

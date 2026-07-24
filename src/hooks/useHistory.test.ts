@@ -74,17 +74,17 @@ describe("useHistory", () => {
       name: "Test",
       timestamp: 1234,
     });
-    expect(localStorage.getItem("zed-history")).toContain("1.2.3.4:2304");
+    expect(localStorage.getItem("dzl-history")).toContain("1.2.3.4:2304");
   });
 
   it("reloads persisted history", () => {
-    localStorage.setItem("zed-history", JSON.stringify([entry("5.6.7.8:2302")]));
+    localStorage.setItem("dzl-history", JSON.stringify([entry("5.6.7.8:2302")]));
     const { result } = renderHook(() => useHistory());
     expect(result.current.history).toHaveLength(1);
   });
 
   it("survives corrupt storage", () => {
-    localStorage.setItem("zed-history", "not json");
+    localStorage.setItem("dzl-history", "not json");
     const { result } = renderHook(() => useHistory());
     expect(result.current.history).toEqual([]);
   });

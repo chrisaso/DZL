@@ -9,7 +9,7 @@ use tauri::Emitter;
 
 /// Marker dropped inside every mod directory this launcher installs, so mod
 /// cleanup can tell our downloads apart from Steam Workshop subscriptions.
-pub(crate) const MANAGED_MARKER: &str = ".zed-launcher";
+pub(crate) const MANAGED_MARKER: &str = ".dzl";
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]

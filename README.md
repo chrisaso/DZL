@@ -1,4 +1,4 @@
-# ZedLauncher
+# DZL
 
 A GUI DayZ launcher for Linux (and Windows later), built with Tauri, React and
 Rust. It does what [dayz-ctl](https://github.com/WoozyMasta/dayz-ctl) does from
@@ -75,7 +75,7 @@ into it, so nothing else needs to be running:
 
 ```sh
 npm run tauri build                              # ~2 min
-./src-tauri/target/release/zed-launcher
+./src-tauri/target/release/dzl
 ```
 
 That also writes `.deb` and `.rpm` packages to
@@ -85,7 +85,7 @@ For a portable single file:
 
 ```sh
 npm run build:appimage
-./src-tauri/target/release/bundle/appimage/zed-launcher_0.1.0_amd64.AppImage
+./src-tauri/target/release/bundle/appimage/dzl_0.1.0_amd64.AppImage
 ```
 
 `npm run build:appimage` exists because plain `tauri build --bundles appimage`
@@ -102,15 +102,15 @@ To get it in your application menu:
 
 ```sh
 mkdir -p ~/.local/bin ~/.local/share/applications
-cp src-tauri/target/release/bundle/appimage/zed-launcher_0.1.0_amd64.AppImage \
-   ~/.local/bin/zed-launcher
-chmod +x ~/.local/bin/zed-launcher
+cp src-tauri/target/release/bundle/appimage/dzl_0.1.0_amd64.AppImage \
+   ~/.local/bin/dzl
+chmod +x ~/.local/bin/dzl
 
-cat > ~/.local/share/applications/zed-launcher.desktop <<'EOF'
+cat > ~/.local/share/applications/dzl.desktop <<'EOF'
 [Desktop Entry]
-Name=ZedLauncher
+Name=DZL
 Comment=DayZ server browser and mod launcher
-Exec=/home/YOUR_USER/.local/bin/zed-launcher
+Exec=/home/YOUR_USER/.local/bin/dzl
 Icon=steam_icon_221100
 Terminal=false
 Type=Application
@@ -124,7 +124,7 @@ WebKitGTK crashes at startup on a Wayland session
 (`Error 71 (Protocol error)`) and renders blank on some GPUs, so the app puts
 itself on XWayland and disables the DMA-BUF renderer automatically. Both are
 only applied when you have not set `GDK_BACKEND` or
-`WEBKIT_DISABLE_DMABUF_RENDERER` yourself, so `GDK_BACKEND=wayland zed-launcher`
+`WEBKIT_DISABLE_DMABUF_RENDERER` yourself, so `GDK_BACKEND=wayland dzl`
 still overrides it.
 
 ## Development
@@ -145,5 +145,5 @@ because this is Linux-first; a Windows build will need `nsis`/`msi` added.
 
 State lives in the Tauri store (`config.json`) for settings, and in
 localStorage for favourites and recently played servers. Mods this launcher
-installs are marked with a `.zed-launcher` file so cleanup never touches mods
+installs are marked with a `.dzl` file so cleanup never touches mods
 you subscribed to in Steam.

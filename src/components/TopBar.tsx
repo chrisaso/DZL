@@ -49,7 +49,7 @@ export function TopBar({
           Z
         </div>
         <span className="font-semibold text-sm tracking-wide text-primary">
-          ZedLauncher
+          DZL
         </span>
       </div>
 

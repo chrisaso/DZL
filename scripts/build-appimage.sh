@@ -25,7 +25,13 @@ cd "$ROOT"
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
 APPIMAGE_DIR="src-tauri/target/release/bundle/appimage"
 VERSION="$(node -p "require('./package.json').version")"
-OUTPUT_NAME="zed-launcher_${VERSION}_amd64.AppImage"
+OUTPUT_NAME="dzl_${VERSION}_amd64.AppImage"
+
+# Tauri adds to an existing AppDir rather than replacing it, so a stale one
+# from a previous name or version leaves behind a second .desktop file and a
+# second icon set, which linuxdeploy then refuses to package.
+echo "==> Clearing previous AppImage output"
+rm -rf "$APPIMAGE_DIR"
 
 # Expected to fail at the linuxdeploy step. Everything before it — the release
 # binary, the AppDir, and downloading the linuxdeploy tools — is what we want.
