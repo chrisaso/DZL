@@ -368,12 +368,6 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
                 ))}
 
               <CheckRow
-                label="Close Steam while downloading"
-                hint="Steam and steamcmd fight over the content pipeline. Steam is restarted afterwards."
-                checked={config.closeSteamForDownloads}
-                onChange={(closeSteamForDownloads) => save({ closeSteamForDownloads })}
-              />
-              <CheckRow
                 label="Update every server mod on join"
                 hint="Off downloads only what is missing, which is much faster."
                 checked={config.updateModsOnJoin}

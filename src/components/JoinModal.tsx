@@ -61,6 +61,7 @@ function ModList({ mods, limit = 12 }: { mods: ModRef[]; limit?: number }) {
 export function JoinModal({
   state,
   onConfirm,
+  onApproveSteamClose,
   onDismiss,
   onRetry,
   onOpenSettings,
@@ -68,6 +69,7 @@ export function JoinModal({
 }: {
   state: JoinFlowState;
   onConfirm: (options?: JoinOptions) => void;
+  onApproveSteamClose: () => void;
   onDismiss: () => void;
   onRetry: () => void;
   onOpenSettings: () => void;
@@ -75,7 +77,6 @@ export function JoinModal({
 }) {
   const [password, setPassword] = useState("");
   const [updateMods, setUpdateMods] = useState(false);
-  const [closeSteam, setCloseSteam] = useState(true);
   const [fixing, setFixing] = useState(false);
 
   const server = "server" in state ? state.server : null;
@@ -86,10 +87,7 @@ export function JoinModal({
   }, [server?.endpoint.ip, server?.endpoint.port]);
 
   useEffect(() => {
-    if (state.kind === "confirm") {
-      setUpdateMods(state.requirements.updateModsOnJoin);
-      setCloseSteam(state.requirements.closeSteamPreference);
-    }
+    if (state.kind === "confirm") setUpdateMods(state.requirements.updateModsOnJoin);
   }, [state.kind]);
 
   if (state.kind === "idle") return null;
@@ -214,7 +212,6 @@ export function JoinModal({
                 onConfirm({
                   password: needsPassword ? password : undefined,
                   updateMods,
-                  closeSteam,
                 })
               }
             >
@@ -285,17 +282,42 @@ export function JoinModal({
             />
           )}
 
-          {/* Only worth asking when something will actually be downloaded and
-              Steam is open to be closed. */}
-          {(missing.length > 0 || updateMods) && requirements.steamRunning && (
-            <CheckRow
-              label="Close Steam while mods download"
-              hint="steamcmd and Steam fight over the download pipeline, so downloads are more reliable with Steam closed. It is started again before the game launches — but anything else Steam is doing will be interrupted."
-              checked={closeSteam}
-              onChange={setCloseSteam}
-            />
-          )}
         </div>
+      </Modal>
+    );
+  }
+
+  if (state.kind === "steam-prompt") {
+    const count = state.requirements.missingMods.length;
+    return (
+      <Modal
+        title="Close Steam first?"
+        subtitle={subtitle}
+        onClose={onDismiss}
+        width="max-w-lg"
+        footer={
+          <>
+            <Button onClick={onDismiss}>Cancel</Button>
+            <Button variant="primary" onClick={onApproveSteamClose}>
+              Close Steam and continue
+            </Button>
+          </>
+        }
+      >
+        <Banner tone="warn" title="Steam is running">
+          steamcmd shares the Steam client's settings folder, so downloading
+          mods while Steam is open can sign you out of Steam and make it
+          complain that cloud sync failed.
+        </Banner>
+        <p className="text-sm text-secondary mt-3">
+          {count > 0
+            ? `${count} mod${count === 1 ? "" : "s"} will be downloaded, then Steam and DayZ start again.`
+            : "Mods will be updated, then Steam and DayZ start again."}
+        </p>
+        <p className="text-xs text-muted mt-1.5">
+          Anything Steam is downloading right now will be interrupted, so
+          cancel if it is busy.
+        </p>
       </Modal>
     );
   }

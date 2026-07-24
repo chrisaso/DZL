@@ -322,9 +322,6 @@ pub async fn update_mods(
     app: tauri::AppHandle,
     steam_path: Option<String>,
     workshop_ids: Vec<String>,
-    // Overrides the stored preference for this run; the UI asks when Steam is
-    // actually running rather than closing it behind the user's back.
-    close_steam: Option<bool>,
 ) -> Result<(), String> {
     let config = read_config(&app);
     let steam_path = resolve_steam_path(&app, steam_path)?;
@@ -354,8 +351,9 @@ pub async fn update_mods(
             );
         };
 
-    let close_steam = close_steam.unwrap_or(config.close_steam_for_downloads);
-    let closed_steam = close_steam && crate::commands::system::steam_running();
+    // Always closed for the same reason as a join: steamcmd and the client
+    // share a config directory. The UI asks before calling this.
+    let closed_steam = crate::commands::system::steam_running();
 
     if closed_steam {
         emit("closing-steam", None, 0, 0, None);

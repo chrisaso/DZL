@@ -51,7 +51,6 @@ function requirements(overrides: Partial<JoinRequirements> = {}): JoinRequiremen
     updateModsOnJoin: false,
     maxMapCountOk: true,
     steamRunning: false,
-    closeSteamPreference: true,
     ...overrides,
   };
 }
@@ -185,11 +184,7 @@ describe("useJoinServer", () => {
     await waitFor(() => expect(result.current.state.kind).toBe("confirm"));
 
     await act(async () => {
-      result.current.confirm({
-        password: "hunter2",
-        updateMods: true,
-        closeSteam: false,
-      });
+      result.current.confirm({ password: "hunter2", updateMods: true });
     });
 
     await waitFor(() => expect(result.current.state.kind).toBe("done"));
@@ -200,15 +195,64 @@ describe("useJoinServer", () => {
         mods: [{ workshopId: "123456", name: "TestMod" }],
         password: "hunter2",
         updateMods: true,
-        // Declining to close Steam has to reach the backend, not be dropped.
-        closeSteam: false,
       },
     });
     expect(onLaunched).toHaveBeenCalledWith(mockServer);
   });
 
-  it("leaves the Steam decision to the backend when not asked", async () => {
-    mockCommands({ check_join_requirements: requirements(), join_server: undefined });
+  it("asks to close Steam before downloading anything", async () => {
+    mockCommands({
+      check_join_requirements: requirements({
+        missingMods: [{ workshopId: "123456", name: "TestMod" }],
+        steamRunning: true,
+      }),
+      join_server: undefined,
+    });
+    const { result } = renderHook(() => useJoinServer());
+
+    act(() => result.current.startJoin(mockServer));
+    await waitFor(() => expect(result.current.state.kind).toBe("confirm"));
+
+    await act(async () => {
+      result.current.confirm();
+    });
+
+    // Nothing is launched until the user approves.
+    expect(result.current.state.kind).toBe("steam-prompt");
+    expect(mockInvoke).not.toHaveBeenCalledWith("join_server", expect.anything());
+
+    await act(async () => {
+      result.current.approveSteamClose();
+    });
+    await waitFor(() => expect(result.current.state.kind).toBe("done"));
+  });
+
+  it("does not ask when nothing will be downloaded", async () => {
+    mockCommands({
+      check_join_requirements: requirements({ missingMods: [], steamRunning: true }),
+      join_server: undefined,
+    });
+    const { result } = renderHook(() => useJoinServer());
+
+    act(() => result.current.startJoin(mockServer));
+    await waitFor(() => expect(result.current.state.kind).toBe("confirm"));
+
+    await act(async () => {
+      result.current.confirm();
+    });
+
+    // Steam is left alone, so the join goes straight through.
+    await waitFor(() => expect(result.current.state.kind).toBe("done"));
+  });
+
+  it("does not ask when Steam is not running", async () => {
+    mockCommands({
+      check_join_requirements: requirements({
+        missingMods: [{ workshopId: "123456", name: "TestMod" }],
+        steamRunning: false,
+      }),
+      join_server: undefined,
+    });
     const { result } = renderHook(() => useJoinServer());
 
     act(() => result.current.startJoin(mockServer));
@@ -219,10 +263,23 @@ describe("useJoinServer", () => {
     });
 
     await waitFor(() => expect(result.current.state.kind).toBe("done"));
-    const request = mockInvoke.mock.calls.find(
-      ([command]) => command === "join_server",
-    )?.[1] as { request: { closeSteam: boolean | null } };
-    expect(request.request.closeSteam).toBeNull();
+  });
+
+  it("asks when updating every mod, even with none missing", async () => {
+    mockCommands({
+      check_join_requirements: requirements({ missingMods: [], steamRunning: true }),
+      join_server: undefined,
+    });
+    const { result } = renderHook(() => useJoinServer());
+
+    act(() => result.current.startJoin(mockServer));
+    await waitFor(() => expect(result.current.state.kind).toBe("confirm"));
+
+    await act(async () => {
+      result.current.confirm({ updateMods: true });
+    });
+
+    expect(result.current.state.kind).toBe("steam-prompt");
   });
 
   it("surfaces a failed join as an error", async () => {

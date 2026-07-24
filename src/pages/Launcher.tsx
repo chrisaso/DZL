@@ -167,6 +167,7 @@ export function Launcher() {
       <JoinModal
         state={join.state}
         onConfirm={join.confirm}
+        onApproveSteamClose={join.approveSteamClose}
         onDismiss={join.dismiss}
         onRetry={join.retry}
         onOpenSettings={() => {

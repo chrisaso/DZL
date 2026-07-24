@@ -70,7 +70,7 @@ export function useMods(enabled: boolean) {
   );
 
   const updateMods = useCallback(
-    async (workshopIds: string[], closeSteam?: boolean) => {
+    async (workshopIds: string[]) => {
       setBusy("updating");
       setError(null);
       setProgress(null);
@@ -81,11 +81,7 @@ export function useMods(enabled: boolean) {
       );
 
       try {
-        await invoke("update_mods", {
-          steamPath: null,
-          workshopIds,
-          closeSteam: closeSteam ?? null,
-        });
+        await invoke("update_mods", { steamPath: null, workshopIds });
         await refresh();
         return true;
       } catch (e) {

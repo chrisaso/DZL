@@ -120,9 +120,6 @@ pub struct AppConfig {
     /// When false the launcher never shells out to steamcmd and instead sends
     /// the user to the Steam Workshop to subscribe manually.
     pub use_steamcmd: bool,
-    /// Shut the Steam client down before running steamcmd — the two fight over
-    /// the same content pipeline otherwise.
-    pub close_steam_for_downloads: bool,
     /// Kill a running DayZ process before launching a new session.
     pub kill_running_dayz: bool,
     /// Update every mod a server requires on join, not just the missing ones.
@@ -142,7 +139,6 @@ impl Default for AppConfig {
             player_name: None,
             steam_login: None,
             use_steamcmd: true,
-            close_steam_for_downloads: true,
             kill_running_dayz: true,
             update_mods_on_join: false,
             // Off by default: a launcher that vanishes unprompted is
@@ -344,7 +340,6 @@ mod tests {
     fn default_config_enables_steamcmd() {
         let config = AppConfig::default();
         assert!(config.use_steamcmd);
-        assert!(config.close_steam_for_downloads);
         assert!(!config.setup_complete);
     }
 

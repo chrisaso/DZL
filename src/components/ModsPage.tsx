@@ -82,9 +82,9 @@ export function ModsPage({
   const disabled = busy !== null;
 
   /** Re-checks the Workshop afterwards so the flags clear on success. */
-  const runUpdate = async (workshopIds: string[], closeSteam?: boolean) => {
+  const runUpdate = async (workshopIds: string[]) => {
     setPendingUpdate(null);
-    const ok = await updateMods(workshopIds, closeSteam);
+    const ok = await updateMods(workshopIds);
     if (ok) onCheckUpdates();
   };
 
@@ -116,23 +116,21 @@ export function ModsPage({
           footer={
             <>
               <Button onClick={() => setPendingUpdate(null)}>Cancel</Button>
-              <Button onClick={() => runUpdate(pendingUpdate, false)}>
-                Keep Steam open
-              </Button>
-              <Button variant="primary" onClick={() => runUpdate(pendingUpdate, true)}>
+              <Button variant="primary" onClick={() => runUpdate(pendingUpdate)}>
                 Close Steam and update
               </Button>
             </>
           }
         >
           <p className="text-sm text-secondary">
-            Steam is running. steamcmd and the Steam client fight over the same
-            download pipeline, so updates are more reliable with Steam closed —
-            but closing it will interrupt anything else Steam is doing, such as
-            another download.
+            steamcmd shares the Steam client's settings folder, so downloading
+            with Steam open can sign you out of Steam and break cloud sync.
+            Steam has to be closed for the update, and is started again
+            afterwards.
           </p>
           <p className="text-xs text-muted mt-2">
-            Steam is started again once the update finishes.
+            Anything Steam is downloading right now will be interrupted, so
+            cancel if it is busy.
           </p>
         </Modal>
       )}

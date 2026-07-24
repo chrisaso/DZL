@@ -12,7 +12,6 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     playerName: "Survivor",
     steamLogin: "someone",
     useSteamcmd: true,
-    closeSteamForDownloads: true,
     killRunningDayz: true,
     updateModsOnJoin: false,
     hideToTrayOnLaunch: false,

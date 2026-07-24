@@ -13,7 +13,6 @@ export interface AppConfig {
   playerName: string | null;
   steamLogin: string | null;
   useSteamcmd: boolean;
-  closeSteamForDownloads: boolean;
   killRunningDayz: boolean;
   updateModsOnJoin: boolean;
   hideToTrayOnLaunch: boolean;
@@ -103,9 +102,8 @@ export interface JoinRequirements {
   steamLoginNeeded: boolean;
   updateModsOnJoin: boolean;
   maxMapCountOk: boolean;
-  /** Whether closing Steam for the download is even a question right now. */
+  /** Whether Steam is up, so the UI knows to ask for approval first. */
   steamRunning: boolean;
-  closeSteamPreference: boolean;
 }
 
 export interface JoinRequest {
@@ -114,7 +112,6 @@ export interface JoinRequest {
   mods: ModRef[];
   password?: string | null;
   updateMods?: boolean | null;
-  closeSteam?: boolean | null;
 }
 
 export interface JoinProgress {

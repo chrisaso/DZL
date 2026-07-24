@@ -55,9 +55,8 @@ pub struct JoinRequirements {
     pub steam_login_needed: bool,
     pub update_mods_on_join: bool,
     pub max_map_count_ok: bool,
-    /// Whether closing Steam for the download is even a question right now.
+    /// Whether Steam is up, so the UI knows to ask for approval first.
     pub steam_running: bool,
-    pub close_steam_preference: bool,
 }
 
 pub(crate) fn check_requirements_logic(
@@ -104,7 +103,6 @@ pub(crate) fn check_requirements_logic(
         update_mods_on_join: config.update_mods_on_join,
         max_map_count_ok: max_map_count == 0 || max_map_count >= REQUIRED_MAX_MAP_COUNT,
         steam_running: steam_is_running,
-        close_steam_preference: config.close_steam_for_downloads,
     }
 }
 
@@ -181,10 +179,6 @@ pub struct JoinRequest {
     pub password: Option<String>,
     /// Overrides the stored `updateModsOnJoin` preference for this launch.
     pub update_mods: Option<bool>,
-    /// Overrides the stored `closeSteamForDownloads` preference for this
-    /// launch. Shutting Steam down is disruptive — it may be downloading
-    /// something else — so the user is asked rather than assumed.
-    pub close_steam: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -338,11 +332,12 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
                     .to_string()
             })?;
 
-        let close_steam = request
-            .close_steam
-            .unwrap_or(config.close_steam_for_downloads);
-
-        if close_steam && steam_running() {
+        // steamcmd writes into the Steam client's own config directory, so a
+        // running client will fight it: cloud sync errors and being signed out
+        // of Steam. Downloading therefore always closes Steam first. The UI
+        // asks for approval before we get here.
+        let closed_steam = steam_running();
+        if closed_steam {
             emit(app, "closing-steam", None, 0, 0, None);
             crate::commands::system::shutdown_steam().await?;
         }
@@ -373,7 +368,7 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
             mark_managed(&steam_path, &m.workshop_id);
         }
 
-        if close_steam {
+        if closed_steam {
             emit(app, "starting-steam", None, 0, 0, None);
             crate::commands::system::start_steam().await?;
         }
@@ -444,8 +439,6 @@ pub async fn launch_game(app: tauri::AppHandle, mods: Vec<ModRef>) -> Result<(),
         mods,
         password: None,
         update_mods: Some(false),
-        // Nothing is downloaded for a plain launch, so Steam is left alone.
-        close_steam: Some(false),
     };
     join_server(app, request).await
 }

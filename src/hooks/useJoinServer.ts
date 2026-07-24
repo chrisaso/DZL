@@ -34,6 +34,18 @@ export type JoinFlowState =
     }
   | { kind: "subscribe"; server: Server; requirements: JoinRequirements }
   | { kind: "confirm"; server: Server; requirements: JoinRequirements }
+  | {
+      /**
+       * Downloading writes into the Steam client's own config, because
+       * steamcmd shares its Steam root. Leaving the client running through
+       * that logs you out and breaks cloud sync, so the user is asked before
+       * anything is downloaded.
+       */
+      kind: "steam-prompt";
+      server: Server;
+      requirements: JoinRequirements;
+      options: JoinOptions;
+    }
   | { kind: "joining"; server: Server; progress: JoinProgress }
   | { kind: "done"; server: Server }
   | { kind: "error"; server: Server | null; message: string };
@@ -41,8 +53,6 @@ export type JoinFlowState =
 export interface JoinOptions {
   password?: string;
   updateMods?: boolean;
-  /** Whether Steam may be shut down while mods download. */
-  closeSteam?: boolean;
 }
 
 export function toModRefs(server: Server): ModRef[] {
@@ -111,8 +121,19 @@ export interface UseJoinServer {
   state: JoinFlowState;
   startJoin: (server: Server) => void;
   confirm: (options?: JoinOptions) => void;
+  /** Approves closing Steam and carries on with the join. */
+  approveSteamClose: () => void;
   dismiss: () => void;
   retry: () => void;
+}
+
+/** True when the join will run steamcmd, which is the only reason to close Steam. */
+export function willDownload(
+  requirements: JoinRequirements,
+  options?: JoinOptions,
+): boolean {
+  const updating = options?.updateMods ?? requirements.updateModsOnJoin;
+  return requirements.missingMods.length > 0 || updating;
 }
 
 export function useJoinServer(options?: {
@@ -153,11 +174,8 @@ export function useJoinServer(options?: {
       .catch((e) => setState({ kind: "error", server, message: String(e) }));
   }, []);
 
-  const confirm = useCallback(
-    async (joinOptions?: JoinOptions) => {
-      const server = "server" in state ? state.server : null;
-      if (!server) return;
-
+  const execute = useCallback(
+    async (server: Server, joinOptions?: JoinOptions) => {
       setState({
         kind: "joining",
         server,
@@ -185,7 +203,6 @@ export function useJoinServer(options?: {
         mods: toModRefs(server),
         password: joinOptions?.password ?? null,
         updateMods: joinOptions?.updateMods ?? null,
-        closeSteam: joinOptions?.closeSteam ?? null,
       };
 
       try {
@@ -198,8 +215,35 @@ export function useJoinServer(options?: {
         cleanup();
       }
     },
-    [state, cleanup, onLaunched],
+    [cleanup, onLaunched],
   );
+
+  const confirm = useCallback(
+    (joinOptions?: JoinOptions) => {
+      if (state.kind !== "confirm") return;
+      const { server, requirements } = state;
+
+      // Only worth asking when steamcmd is about to run and there is a client
+      // to close.
+      if (willDownload(requirements, joinOptions) && requirements.steamRunning) {
+        setState({
+          kind: "steam-prompt",
+          server,
+          requirements,
+          options: joinOptions ?? {},
+        });
+        return;
+      }
+
+      execute(server, joinOptions);
+    },
+    [state, execute],
+  );
+
+  const approveSteamClose = useCallback(() => {
+    if (state.kind !== "steam-prompt") return;
+    execute(state.server, state.options);
+  }, [state, execute]);
 
   const retry = useCallback(() => {
     const server = "server" in state ? state.server : null;
@@ -211,5 +255,5 @@ export function useJoinServer(options?: {
     setState({ kind: "idle" });
   }, [cleanup]);
 
-  return { state, startJoin, confirm, dismiss, retry };
+  return { state, startJoin, confirm, approveSteamClose, dismiss, retry };
 }
