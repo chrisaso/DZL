@@ -183,7 +183,7 @@ export function ServerList({
   );
 
   // A favourite or recently played server that has dropped off the master list
-  // is still worth showing — dayz-ctl lists those in red rather than hiding them.
+  // is still worth showing; dayz-ctl lists those in red rather than hiding them.
   const offlineHistory =
     filters.view === "recent"
       ? history.filter(

@@ -1,5 +1,5 @@
 /**
- * The DZL mark, kept in sync with `assets/logo.svg` — the source the app icons
+ * The DZL mark, kept in sync with `assets/logo.svg`, the source the app icons
  * are generated from. Edit both together if the mark changes.
  */
 export function Logo({ size = 24 }: { size?: number }) {

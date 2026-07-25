@@ -20,7 +20,7 @@ function save(entries: HistoryEntry[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   } catch {
-    // Storage full or unavailable — history is a convenience, not critical.
+    // Storage full or unavailable; history is a convenience, not critical.
   }
 }
 

@@ -5,8 +5,8 @@ import type { AppConfig, EnvironmentReport } from "../types/launcher";
  *
  * This is the "is the launcher ready at all" check that drives the banner, the
  * Settings page and the tab badge. The per-join preflight in `useJoinServer`
- * answers a narrower question — whether *this* server can be joined right now —
- * from requirements the backend computes.
+ * answers a narrower question, whether *this* server can be joined right
+ * now, from requirements the backend computes.
  */
 export type SetupField = "playerName" | "steamPath" | "steamLogin";
 

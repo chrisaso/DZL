@@ -1,7 +1,7 @@
 # Contributing
 
 Contributions are welcome. This is a small project, so there is no process to
-speak of — fork it, open a pull request, and we will sort out the details there.
+speak of. Fork it, open a pull request, and we will sort out the details there.
 
 ## Getting set up
 
@@ -19,7 +19,7 @@ reload as you save. Rust changes need a restart.
 
 Only Arch is verified for building. The dependency lists for Debian, Ubuntu and
 Fedora are what the documentation says they should be, not something that has
-been run end to end — if one of them is wrong, saying so is itself a useful
+been run end to end. If one of them is wrong, saying so is itself a useful
 contribution.
 
 ## Before you open a pull request
@@ -35,8 +35,9 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 Clippy is gated on `-D warnings` because the tree is currently clean, so a new
-warning will fail the build. `cargo fmt` is not gated — the existing source does
-not satisfy it, and reformatting everything would bury real changes in noise.
+warning will fail the build. `cargo fmt` is not gated, because the existing
+source does not satisfy it and reformatting everything would bury real changes
+in noise.
 Match the surrounding style instead.
 
 CI runs both suites on every pull request. The first time you contribute, a
@@ -63,7 +64,7 @@ launcher rather than by a Workshop subscription, and the symlink under
 
 The server list, its filters, live ping and player counts, the tray and the
 system report all work with no Steam or DayZ present at all. What you cannot
-test this way is anything past the join button — real steamcmd downloads need a
+test this way is anything past the join button: real steamcmd downloads need a
 Steam login, and launching needs the game.
 
 ## Branches and commits
@@ -84,14 +85,14 @@ files is hard to review and harder to revert.
 
 ## Scope
 
-DZL is Linux-first and that is the priority. A Windows build is plausible —
-`bundle.targets` in `src-tauri/tauri.conf.json` would need `nsis`/`msi` adding —
-but it is a large piece of work touching path handling, process management and
-the Steam integration throughout. Open an issue and let us agree on the shape
+DZL is Linux-first and that is the priority. A Windows build is plausible, and
+`bundle.targets` in `src-tauri/tauri.conf.json` would only need `nsis`/`msi`
+adding, but it is a large piece of work touching path handling, process
+management and the Steam integration throughout. Open an issue and let us agree on the shape
 before writing any of it.
 
 Bug reports are welcome regardless of whether you intend to fix them. Include
-your distro, your desktop session (X11 or Wayland), and how you installed DZL —
+your distro, your desktop session (X11 or Wayland), and how you installed DZL;
 those three explain most of what goes wrong.
 
 ## Layout
