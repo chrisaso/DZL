@@ -51,7 +51,7 @@ const DEFAULT_FILTERS: Filters = {
   vacOnly: false,
 };
 
-/** Daytime is 06:00–18:00 in game time, matching dayz-ctl's filter. */
+/** Daytime is 06:00 to 18:00 in game time, matching dayz-ctl's filter. */
 export function isDaytime(time: string): boolean {
   const hour = Number.parseInt(time.split(":")[0] ?? "", 10);
   return Number.isFinite(hour) && hour >= 6 && hour <= 18;
@@ -83,7 +83,7 @@ export function useFilters(
     [servers],
   );
 
-  // Structural identity key — changes only when servers are added or removed,
+  // Structural identity key. Changes only when servers are added or removed,
   // not when individual server data (e.g. player count) is patched in-place
   // by refreshServer.
   const serverStructureKey = useMemo(
@@ -92,12 +92,12 @@ export function useFilters(
   );
 
   // Sort order is stored in a ref so React can never discard or invalidate it.
-  // useMemo is a performance hint — React 19 can recompute memos even without
+  // useMemo is a performance hint; React 19 can recompute memos even without
   // dep changes. A ref update is imperative and survives concurrent rendering.
   //
   // The ref is updated only when the server set or user-chosen sort params
   // change. refreshServer() patches data without changing server IDs, so
-  // serverStructureKey stays the same and the ref is left untouched — servers
+  // serverStructureKey stays the same and the ref is left untouched, so servers
   // stay in their current positions.
   const sortCacheRef = useRef<{
     structureKey: string;

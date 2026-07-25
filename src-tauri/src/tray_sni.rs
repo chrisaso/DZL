@@ -1,7 +1,7 @@
 //! System tray over the StatusNotifierItem protocol.
 //!
 //! Tauri's tray goes through libappindicator, whose backend never emits click
-//! events — `tray-icon` documents Linux clicks as "the event is not emitted
+//! events; `tray-icon` documents Linux clicks as "the event is not emitted
 //! even though the icon is shown". That means a left click can only ever open
 //! the context menu, so opening the window took two actions.
 //!
@@ -66,7 +66,7 @@ impl ksni::Tray for SniTray {
     }
 
     /// Deliberately empty. Hosts that see a name look it up in the icon theme
-    /// and draw a "missing icon" placeholder when it is not there — which is
+    /// and draw a "missing icon" placeholder when it is not there, which is
     /// exactly what happens before the app is installed, or when the host has
     /// not rescanned the theme. The embedded pixmap below always works.
     fn icon_name(&self) -> String {
@@ -86,7 +86,7 @@ impl ksni::Tray for SniTray {
         }
     }
 
-    /// Left click. Deliberately only ever shows the window — "Hide to tray"
+    /// Left click. Deliberately only ever shows the window, because "Hide to tray"
     /// is an explicit menu choice, so a stray click can never make the
     /// launcher vanish.
     fn activate(&mut self, _x: i32, _y: i32) {

@@ -202,7 +202,7 @@ export function ServerTable({
             </tr>
           )}
 
-          {/* Top spacer — fills height of unrendered rows above viewport */}
+          {/* Top spacer, fills height of unrendered rows above viewport */}
           {paddingTop > 0 && (
             <tr>
               <td colSpan={COLUMN_COUNT} style={{ height: paddingTop }} />
@@ -315,7 +315,7 @@ export function ServerTable({
             );
           })}
 
-          {/* Bottom spacer — fills height of unrendered rows below viewport */}
+          {/* Bottom spacer, fills height of unrendered rows below viewport */}
           {paddingBottom > 0 && (
             <tr>
               <td colSpan={COLUMN_COUNT} style={{ height: paddingBottom }} />

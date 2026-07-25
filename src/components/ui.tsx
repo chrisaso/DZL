@@ -296,7 +296,7 @@ export function Banner({
 
 /**
  * A command or path the user may need to run. When the content is plain text
- * it gets a copy button — these are usually commands that have to be pasted
+ * it gets a copy button. These are usually commands that have to be pasted
  * into a terminal, and retyping an account name invites typos.
  */
 export function Code({ children }: { children: ReactNode }) {
@@ -320,7 +320,7 @@ export function Code({ children }: { children: ReactNode }) {
     setTimeout(() => setCopied(false), 1600);
   };
 
-  // The outer block puts the command on its own line — inline it would trail
+  // The outer block puts the command on its own line; inline it would trail
   // off the end of a sentence. The inner box is sized to the content so the
   // button stays next to the text instead of drifting to the panel's edge.
   return (

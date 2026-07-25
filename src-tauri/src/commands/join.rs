@@ -122,7 +122,7 @@ pub(crate) fn relative_link_target(workshop_id: &str) -> String {
 /// Creates `common/DayZ/@<id>` pointing at the workshop directory.
 ///
 /// An existing link is left alone when it already resolves to the right place,
-/// whether it was written as a relative or absolute path — that keeps links
+/// whether it was written as a relative or absolute path, which keeps links
 /// made by dayz-ctl or a previous launcher version intact.
 pub(crate) fn ensure_symlink(steam_path: &str, workshop_id: &str) -> Result<(), String> {
     let target = mod_dir(steam_path, workshop_id);
@@ -415,7 +415,7 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
     emit(app, "waiting", None, 0, 0, None);
     for _ in 0..60 {
         if dayz_running() {
-            // Only get out of the way once the game is actually up — if the
+            // Only get out of the way once the game is actually up; if the
             // launch failed the user needs to see the window, not hunt for it
             // in the tray.
             if config.hide_to_tray_on_launch {
@@ -429,7 +429,7 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
     Ok(())
 }
 
-/// Launches DayZ without connecting anywhere — the "Launch Game" entry from
+/// Launches DayZ without connecting anywhere: the "Launch Game" entry from
 /// dayz-ctl's main menu, plus optional hand-picked mods.
 #[tauri::command]
 pub async fn launch_game(app: tauri::AppHandle, mods: Vec<ModRef>) -> Result<(), String> {

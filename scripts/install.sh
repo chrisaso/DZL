@@ -147,13 +147,13 @@ echo "  entry    : $DESKTOP_FILE"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
-  *) warn "$BIN_DIR is not on your PATH — the app menu entry works, but the
+  *) warn "$BIN_DIR is not on your PATH. The app menu entry works, but the
            '$APP_ID' command will not until you add it." ;;
 esac
 
 command -v steam >/dev/null 2>&1 || warn "Steam was not found on PATH."
 if ! command -v steamcmd >/dev/null 2>&1; then
-  warn "steamcmd was not found — install it to download mods automatically,
+  warn "steamcmd was not found. Install it to download mods automatically,
            or turn steamcmd off in Settings and subscribe on the Workshop."
 fi
 

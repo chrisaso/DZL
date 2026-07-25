@@ -35,7 +35,7 @@ pub(crate) fn detect_steam_path() -> Option<String> {
     find_first_valid_dir(&steam_path_candidates(&home))
 }
 
-/// The game directory inside a `steamapps` path — this is where mod symlinks
+/// The game directory inside a `steamapps` path, which is where mod symlinks
 /// live and what proves DayZ is actually installed.
 pub(crate) fn dayz_dir(steam_path: &str) -> std::path::PathBuf {
     std::path::Path::new(steam_path).join("common/DayZ")
@@ -83,7 +83,7 @@ const APPIMAGE_INJECTED: &[&str] = &[
 ];
 
 /// Workarounds we apply to our own window that a game must not inherit, plus
-/// the AppImage's own breadcrumbs — a child that finds APPDIR set may decide
+/// the AppImage's own breadcrumbs; a child that finds APPDIR set may decide
 /// it is itself running from an AppImage.
 const LAUNCHER_ONLY: &[&str] = &[
     "GDK_BACKEND",
