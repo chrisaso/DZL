@@ -2,6 +2,12 @@
   "name": "dzl",
   "private": true,
   "version": "0.1.0",
+  "description": "A GUI DayZ launcher for Linux",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisaso/DZL.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

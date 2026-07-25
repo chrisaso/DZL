@@ -10,7 +10,7 @@ Inspired by [dayz-ctl](https://github.com/WoozyMasta/dayz-ctl) and
 ## What it does
 
 **Servers**
-- Full DZSA server list with a 5 minute cache, filtered by name, mod, map,
+- Server list with a 5 minute cache, filtered by name, mod, map,
   version, official/community, Linux/Windows host, in-game day/night, player
   count, 1PP/3PP, BattlEye, VAC and password
 - All / Saved / Recently played views; recently played servers that have gone
@@ -226,3 +226,7 @@ State lives in the Tauri store (`config.json`) for settings, and in
 localStorage for favourites and recently played servers. Mods this launcher
 installs are marked with a `.dzl` file so cleanup never touches mods
 you subscribed to in Steam.
+
+## License
+
+[MIT](LICENSE).
