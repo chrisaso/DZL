@@ -6,6 +6,13 @@ mod tray_sni;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be the first plugin registered: a second launch hands its
+        // arguments to the running instance and exits, and this callback is
+        // what makes that visible — the window comes back even when the
+        // launcher was sitting in the tray.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_window(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
