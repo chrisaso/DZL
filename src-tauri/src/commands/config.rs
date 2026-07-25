@@ -114,7 +114,7 @@ pub struct AppConfig {
     pub steam_path: Option<String>,
     /// In-game player name passed as `-name=`.
     pub player_name: Option<String>,
-    /// steamcmd account name. Credentials are never stored here — steamcmd
+    /// steamcmd account name. Credentials are never stored here; steamcmd
     /// keeps its own cached login token after a one-time terminal sign-in.
     pub steam_login: Option<String>,
     /// When false the launcher never shells out to steamcmd and instead sends

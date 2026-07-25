@@ -1,7 +1,7 @@
 //! System tray icon.
 //!
-//! On Linux the tray goes through libappindicator, which only supports a menu —
-//! click events are never delivered to the app. Every action is therefore
+//! On Linux the tray goes through libappindicator, which only supports a menu,
+//! so click events are never delivered to the app. Every action is therefore
 //! reachable from the menu rather than relying on clicking the icon.
 
 use tauri::{

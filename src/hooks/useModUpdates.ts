@@ -23,7 +23,7 @@ export function useModUpdates() {
       setLastChecked(Date.now());
       return list;
     } catch (e) {
-      // Offline or Steam having a bad day — leave the previous answer alone
+      // Offline or Steam having a bad day, so leave the previous answer alone
       // rather than pretending everything is up to date.
       setError(String(e));
       return null;

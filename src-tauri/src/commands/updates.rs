@@ -3,7 +3,7 @@
 //! Steam's published-file endpoint reports when each workshop item was last
 //! updated, and needs no API key. Comparing that against the newest file in the
 //! local mod directory is the closest thing to a reliable "is my copy stale?"
-//! signal — DayZ's own meta.cpp timestamp is in an undocumented format that
+//! signal; DayZ's own meta.cpp timestamp is in an undocumented format that
 //! cannot be compared to a unix time.
 
 use crate::commands::join::MANAGED_MARKER;
@@ -40,7 +40,7 @@ pub(crate) struct RemoteDetail {
 }
 
 /// Newest modification time of a mod's content, ignoring the marker file this
-/// launcher writes after a download — that would otherwise always look newer
+/// launcher writes after a download, which would otherwise always look newer
 /// than the content itself.
 pub(crate) fn newest_content_mtime(dir: &std::path::Path) -> Option<i64> {
     let entries = std::fs::read_dir(dir).ok()?;
@@ -72,7 +72,7 @@ pub(crate) fn newest_content_mtime(dir: &std::path::Path) -> Option<i64> {
 }
 
 /// True when Steam has a newer publish time than the local copy. Unknown on
-/// either side means "don't claim an update" — a false alarm that triggers a
+/// either side means "don't claim an update", because a false alarm that triggers a
 /// multi-gigabyte download is worse than a missed one.
 pub(crate) fn is_outdated(local: Option<i64>, remote: Option<i64>) -> bool {
     match (local, remote) {

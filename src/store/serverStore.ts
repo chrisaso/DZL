@@ -39,7 +39,7 @@ function writeCache(servers: Server[]) {
       JSON.stringify({ servers, timestamp: Date.now() } satisfies CacheEntry),
     );
   } catch {
-    // Quota exceeded — cache is best-effort
+    // Quota exceeded; cache is best-effort
   }
 }
 
@@ -69,7 +69,7 @@ export const useServerStore = create<ServerStore>((set, get) => ({
     const cached = readCache();
 
     if (cached) {
-      // Cache is fresh — single set, no background fetch.
+      // Cache is fresh: single set, no background fetch.
       // A double-set (cache then network) caused a render where Zustand's
       // async set() fired before React committed the pending setFilters update,
       // producing a render with stale filters.search = "" and all servers visible.
@@ -78,7 +78,7 @@ export const useServerStore = create<ServerStore>((set, get) => ({
       return;
     }
 
-    // No cache — full blocking load, single set after fetch.
+    // No cache: full blocking load, single set after fetch.
     set({ loading: true, error: null });
     try {
       const raw = await fetchServersApi();
@@ -96,7 +96,7 @@ export const useServerStore = create<ServerStore>((set, get) => ({
       try {
         localStorage.removeItem(CACHE_KEY);
       } catch {
-        // localStorage unavailable — proceed anyway
+        // localStorage unavailable; proceed anyway
       }
     }
     await get().fetchServers();
@@ -110,13 +110,13 @@ export const useServerStore = create<ServerStore>((set, get) => ({
         ),
       }));
     } catch (e) {
-      console.warn(`[refreshServer] ${ip}:${port} —`, e);
-      // Leave existing data intact — no crash, no fallback fetch
+      console.warn(`[refreshServer] ${ip}:${port}:`, e);
+      // Leave existing data intact: no crash, no fallback fetch
     }
   },
 }));
 
-/** @internal Test-only — resets the fetchInFlight guard between tests. */
+/** @internal Test-only. Resets the fetchInFlight guard between tests. */
 export function _resetFetchGuard() {
   fetchInFlight = false;
 }

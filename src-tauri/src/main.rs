@@ -6,8 +6,8 @@
 ///
 /// Desktop sessions commonly export a *priority list* such as
 /// `GDK_BACKEND=wayland,x11,*`. That is the session stating a preference, not
-/// the user demanding Wayland for this app, so a list still gets overridden —
-/// otherwise the window comes up blank for anyone launching from their app
+/// the user demanding Wayland for this app, so a list still gets overridden.
+/// Otherwise the window comes up blank for anyone launching from their app
 /// menu. A single explicit value like `GDK_BACKEND=wayland` is honoured.
 #[cfg(target_os = "linux")]
 fn should_force_x11(backend: Option<&str>, on_wayland: bool, has_x11: bool) -> bool {

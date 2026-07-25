@@ -82,7 +82,7 @@ pub(crate) fn dir_size(path: &std::path::Path) -> u64 {
         .sum()
 }
 
-/// Cheap fingerprint of the workshop directory — entry names plus modification
+/// Cheap fingerprint of the workshop directory: entry names plus modification
 /// times. Summing directory sizes across dozens of mods is slow, so a rescan
 /// only happens when this changes. Same idea as dayz-ctl's md5 checksum, but
 /// it also notices in-place updates.
@@ -239,7 +239,7 @@ pub fn delete_mods(
 }
 
 /// Removes every mod this launcher installed, leaving Workshop subscriptions
-/// alone — dayz-ctl's "Remove managed mods".
+/// alone, the equivalent of dayz-ctl's "Remove managed mods".
 #[tauri::command]
 pub fn delete_managed_mods(
     app: tauri::AppHandle,
@@ -396,7 +396,7 @@ pub async fn update_mods(
         if let Err(e) = result {
             emit("error", Some(&e), current, total, None);
             invalidate_cache();
-            // Put Steam back even when the update fails — we closed it, so
+            // Put Steam back even when the update fails; we closed it, so
             // leaving the user without it would be rude.
             if closed_steam {
                 let _ = crate::commands::system::start_steam().await;

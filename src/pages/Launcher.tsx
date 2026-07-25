@@ -65,7 +65,7 @@ export function Launcher() {
     [query],
   );
 
-  // `force` skips the ping cache — an explicit refresh should never hand back
+  // `force` skips the ping cache; an explicit refresh should never hand back
   // the reading it took a minute ago.
   const handleRefreshPing = useCallback(
     async (ip: string, port: number) => {

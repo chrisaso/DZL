@@ -1,7 +1,7 @@
 import { beforeEach } from "vitest";
 
 /**
- * jsdom under this Node version exposes no `localStorage` — Node's own
+ * jsdom under this Node version exposes no `localStorage`: Node's own
  * experimental global shadows it and resolves to undefined. The Tauri webview
  * always has real storage, so tests get an equivalent in-memory implementation
  * instead of the app having to guard every access.

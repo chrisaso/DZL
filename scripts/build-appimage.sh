@@ -10,8 +10,9 @@
 #      NO_STRIP=1 skips that step.
 #   2. linuxdeploy-plugin-gtk copies /usr/lib/gdk-pixbuf-2.0/2.10.0, a
 #      directory gdk-pixbuf 2.44 no longer ships. Skipping the plugin means
-#      GTK is not bundled and the host's copy is used instead — fine for any
-#      machine that runs Steam, but it does make the AppImage less portable
+#      GTK is not bundled and the host's copy is used instead. That is fine
+#      for any machine that runs Steam, but it does make the AppImage less
+#      portable
 #      than one built on an older distro.
 #
 # So: let Tauri compile the binary and lay out the AppDir, then run linuxdeploy
@@ -33,8 +34,8 @@ OUTPUT_NAME="dzl_${VERSION}_amd64.AppImage"
 echo "==> Clearing previous AppImage output"
 rm -rf "$APPIMAGE_DIR"
 
-# Expected to fail at the linuxdeploy step. Everything before it — the release
-# binary, the AppDir, and downloading the linuxdeploy tools — is what we want.
+# Expected to fail at the linuxdeploy step. Everything before it (the release
+# binary, the AppDir, and downloading the linuxdeploy tools) is what we want.
 echo "==> Building release binary and AppDir"
 npm run tauri build -- --bundles appimage || true
 

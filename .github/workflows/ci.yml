@@ -57,7 +57,7 @@ jobs:
             libayatana-appindicator3-dev libssl-dev
 
       # The frontend is never built in this job, so `dist/` is absent. That is
-      # fine for a test build — only `tauri build` needs the bundle to exist.
+      # fine for a test build; only `tauri build` needs the bundle to exist.
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
       # The tree is clippy-clean, so warnings are worth failing on. `cargo fmt`

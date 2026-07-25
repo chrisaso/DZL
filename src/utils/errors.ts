@@ -58,7 +58,7 @@ export function describeError(raw: unknown): FriendlyError {
 
   const known = TITLES[code];
   if (!known) {
-    // Unknown shape — show it verbatim rather than inventing a friendly lie.
+    // Unknown shape, so show it verbatim rather than inventing a friendly lie.
     return { title: "Something went wrong", detail: message };
   }
 
