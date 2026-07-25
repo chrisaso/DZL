@@ -81,8 +81,24 @@ send you to the Steam Workshop to subscribe instead.
 
 ## Install
 
-There are no prebuilt downloads yet, so you build once. Only Arch is tested —
-the other distros below are the documented dependency sets, not verified ones.
+### Download a release
+
+Take a `.deb`, `.rpm` or AppImage from
+[Releases](https://github.com/chrisaso/DZL/releases):
+
+```sh
+sudo apt install ./DZL_0.1.0_amd64.deb          # Debian, Ubuntu
+sudo dnf install ./DZL-0.1.0-1.x86_64.rpm       # Fedora
+chmod +x DZL_0.1.0_amd64.AppImage && ./DZL_0.1.0_amd64.AppImage
+```
+
+Those are built on Ubuntu 22.04, so they run on glibc 2.35 and newer — Debian
+12+, Ubuntu 22.04+, Fedora and Arch all qualify. Debian 11 and Ubuntu 20.04 do
+not, and neither ships WebKitGTK 4.1 anyway.
+
+Building it yourself is the better route on Arch, and the one you want for
+development. Only Arch is tested — the other distros below are the documented
+dependency sets, not verified ones.
 
 ### Build dependencies
 
@@ -101,8 +117,6 @@ sudo apt install build-essential curl wget file nodejs npm \
   libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # if no rustc
 ```
-
-Debian 11 and Ubuntu 20.04 cannot work — they only ship WebKitGTK 4.0.
 
 **Fedora 38+**
 
@@ -139,17 +153,19 @@ works from a terminal if `~/.local/bin` is on your PATH.
 
 Uninstalling never touches your installed mods or their symlinks.
 
-Building needs Node and Rust; running does not. The AppImage still needs
-WebKitGTK 4.1 and GTK 3 on the host — GTK is deliberately not bundled, for the
-reasons under [Building by hand](#building-by-hand).
+Building needs Node and Rust; running does not. An AppImage built here still
+needs WebKitGTK 4.1 and GTK 3 on the host — GTK is deliberately not bundled,
+for the reasons under [Building by hand](#building-by-hand). The release
+AppImage is built on Ubuntu 22.04, where that workaround is unnecessary, so it
+bundles GTK properly and is the portable one.
 
 Off Arch, `--binary` or a native package below is the more predictable route:
-the AppImage build exists to route around linuxdeploy bugs that only bite on a
-current Arch system, and it has not been exercised anywhere else.
+the local AppImage build exists to route around linuxdeploy bugs that only bite
+on a current Arch system, and it has not been exercised anywhere else.
 
-### Let your package manager own it instead
+### Let your package manager own a local build
 
-`npm run tauri build` also writes native packages:
+`npm run tauri build` writes the same native packages the releases ship:
 
 ```sh
 npm run tauri build
@@ -226,6 +242,26 @@ State lives in the Tauri store (`config.json`) for settings, and in
 localStorage for favourites and recently played servers. Mods this launcher
 installs are marked with a `.dzl` file so cleanup never touches mods
 you subscribed to in Steam.
+
+### Cutting a release
+
+Bump the version in `package.json`, `src-tauri/tauri.conf.json` and
+`src-tauri/Cargo.toml` — all three must agree, and the one in `tauri.conf.json`
+is what names the artifacts. Then tag it:
+
+```sh
+cargo update -p dzl --manifest-path src-tauri/Cargo.toml   # refresh Cargo.lock
+git commit -am "chore: release v0.1.0"
+git tag v0.1.0
+git push origin main --follow-tags
+```
+
+`.github/workflows/release.yml` picks up any `v*` tag, runs both test suites,
+builds on Ubuntu 22.04 and attaches the `.deb`, `.rpm` and AppImage to a
+**draft** release. Check the AppImage starts, write the notes, then publish.
+
+The tag has to match the manifest version or the artifact filenames will not
+line up with the release.
 
 ## License
 

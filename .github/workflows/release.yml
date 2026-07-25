@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Pinned to 22.04 deliberately: it ships glibc 2.35, so the artifacts also
+    # start on Debian 12, Ubuntu 22.04+ and Fedora. Building on a newer image
+    # produces binaries that refuse to run on any of them, and `ubuntu-latest`
+    # would silently move that floor up whenever GitHub rolls the image.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # patchelf and librsvg are what the AppImage bundler needs; the rest is
+      # Tauri's standard Linux set.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl wget file patchelf \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev \
+            libayatana-appindicator3-dev libssl-dev
+
+      - run: npm ci
+
+      # Gate the release on the suites rather than shipping a broken tag.
+      - run: npm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: DZL ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          # tauri.conf.json lists only deb and rpm, since the AppImage cannot be
+          # built locally on Arch without scripts/build-appimage.sh. The bugs
+          # that script works around do not occur here, so ask for it directly
+          # and get a properly bundled, portable AppImage.
+          args: --bundles deb,rpm,appimage
