@@ -7,6 +7,22 @@ the right arguments.
 Inspired by [dayz-ctl](https://github.com/WoozyMasta/dayz-ctl) and
 [DZSA Launcher](https://dayzsalauncher.com/).
 
+## Screenshots
+
+![The server list, with filters down the left side and live ping and player counts on the right](assets/screenshots/servers.jpg)
+
+*Servers — filter 21,000 of them by name, mod, map, version, host platform,
+in-game time and more, with ping and player counts queried live.*
+
+![The mods tab, listing installed mods with their source and size](assets/screenshots/mods.jpg)
+
+*Mods — everything installed, how big it is, whether the launcher or a Steam
+subscription put it there, and whether its symlink is intact.*
+
+![The settings page, showing the system report and the launch option editor](assets/screenshots/settings.jpg)
+
+*Settings — what the launcher found on this machine, then every knob it has.*
+
 ## What it does
 
 **Servers**
