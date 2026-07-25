@@ -37,7 +37,7 @@ const SERVERS: Server[] = [
   makeServer({ name: "PvE Paradise", map: "namalsk" }),
 ];
 
-describe("useFilters – search", () => {
+describe("useFilters: search", () => {
   test("empty search returns all servers", () => {
     const { result } = renderHook(() =>
       useFilters(SERVERS, new Set()),
@@ -187,7 +187,7 @@ describe("useFilters – search", () => {
       result.current.updateFilter("search", "Livonia");
     });
 
-    // No match yet — Livonia not in initial two servers
+    // No match yet; Livonia not in initial two servers
     expect(result.current.filtered).toHaveLength(0);
 
     // Simulate what Zustand does: update the servers prop

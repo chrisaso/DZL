@@ -162,7 +162,7 @@ export function useJoinServer(options?: {
           return;
         }
 
-        // Subscribe-only mode is not an error — the Steam client installs the
+        // Subscribe-only mode is not an error; the Steam client installs the
         // mods instead of steamcmd, so hand the user the workshop pages.
         if (!requirements.useSteamcmd && requirements.missingMods.length > 0) {
           setState({ kind: "subscribe", server, requirements });

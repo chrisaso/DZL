@@ -145,7 +145,7 @@ export interface HistoryEntry {
   id: string;
   name: string;
   ip: string;
-  /** Query port — the id used everywhere else in the app. */
+  /** Query port, the id used everywhere else in the app. */
   port: number;
   gamePort: number;
   timestamp: number;

@@ -90,7 +90,7 @@ export function ModsPage({
 
   /**
    * Downloads are more reliable with Steam closed, but shutting it down could
-   * interrupt anything else it is doing — so ask rather than decide.
+   * interrupt anything else it is doing, so ask rather than decide.
    */
   const startUpdate = async (workshopIds: string[]) => {
     if (workshopIds.length === 0) return;

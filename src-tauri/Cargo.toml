@@ -1,6 +1,6 @@
 [package]
 name = "dzl"
-version = "0.1.0"
+version = "0.1.1"
 description = "DayZ launcher for Linux"
 authors = ["Christian Solstad <christian@solstad.me>"]
 license = "MIT"

@@ -32,7 +32,7 @@ fn base_args(login: &str) -> Vec<String> {
     vec![
         "+@ShutdownOnFailedCommand".into(),
         "1".into(),
-        // Fail instead of blocking on an interactive password prompt — the GUI
+        // Fail instead of blocking on an interactive password prompt; the GUI
         // has no terminal to answer it.
         "+@NoPromptForPassword".into(),
         "1".into(),
@@ -282,7 +282,7 @@ pub(crate) fn classify_failure(
 
 /// Turns a raw steamcmd chunk into displayable lines. steamcmd redraws
 /// progress with carriage returns, so a single `\n` line can carry many
-/// updates — keep the last one.
+/// updates, so keep the last one.
 pub(crate) fn last_segment(chunk: &str) -> &str {
     chunk.rsplit('\r').next().unwrap_or(chunk).trim()
 }
