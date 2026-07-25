@@ -36,7 +36,7 @@ for arg in "$@"; do
     --no-build) BUILD=0 ;;
     --uninstall) UNINSTALL=1 ;;
     --purge) PURGE=1 ;;
-    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
