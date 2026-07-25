@@ -1,9 +1,11 @@
 # DZL
 
 A GUI DayZ launcher for Linux (and Windows later), built with Tauri, React and
-Rust. It does what [dayz-ctl](https://github.com/WoozyMasta/dayz-ctl) does from
-the terminal — browse servers, install the mods a server needs, and launch the
-game with the right arguments — without the terminal.
+Rust. Browse servers, install the mods a server needs, and launch the game with
+the right arguments.
+
+Inspired by [dayz-ctl](https://github.com/WoozyMasta/dayz-ctl) and
+[DZSA Launcher](https://dayzsalauncher.com/).
 
 ## What it does
 
@@ -22,8 +24,11 @@ game with the right arguments — without the terminal.
 - Preflight that tells you exactly what is missing before anything happens
 - Downloads the mods a server requires through steamcmd, with live progress,
   then symlinks them into the game directory
-- Shuts Steam down for the download and restarts it afterwards, because Steam
-  and steamcmd fight over the content pipeline
+- Asks before closing Steam, and only when mods genuinely need downloading and
+  Steam is up: steamcmd resolves `~/.steam/root` to the running client's own
+  directory and writes into its `config.vdf`, which signs you out and makes
+  Steam report a failed cloud sync. Steam is started again before the game
+  launches. Joining a server whose mods are all present never asks
 - Password servers, "update every mod first", and closing a running DayZ
 - Without steamcmd it falls back to opening the Workshop pages so the Steam
   client installs the mods instead
@@ -54,6 +59,12 @@ game with the right arguments — without the terminal.
 - `vm.max_map_count` ≥ 1048576 — the launcher offers to set it
 - Optional: `geoiplookup` or `whois` for server country lookup
 
+`steamcmd` is packaged inconsistently: it is `steamcmd` from the AUR on Arch,
+`steamcmd` in Debian's `non-free` and Ubuntu's `multiverse`, and not packaged at
+all on Fedora — there, use
+[Valve's tarball](https://developer.valvesoftware.com/wiki/SteamCMD#Linux).
+It is optional either way; without it the launcher sends you to the Workshop.
+
 ### Steam sign-in
 
 DayZ workshop content **cannot** be downloaded by steamcmd's anonymous login, so
@@ -70,8 +81,45 @@ send you to the Steam Workshop to subscribe instead.
 
 ## Install
 
+There are no prebuilt downloads yet, so you build once. Only Arch is tested —
+the other distros below are the documented dependency sets, not verified ones.
+
+### Build dependencies
+
+Every route needs Node, Rust, and the WebKitGTK 4.1 and GTK 3 headers.
+
+**Arch / Manjaro** (tested)
+
 ```sh
-git clone <this repo> && cd dzl
+sudo pacman -S --needed base-devel nodejs npm rust webkit2gtk-4.1 librsvg
+```
+
+**Debian 12+ / Ubuntu 22.04+**
+
+```sh
+sudo apt install build-essential curl wget file nodejs npm \
+  libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libxdo-dev
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # if no rustc
+```
+
+Debian 11 and Ubuntu 20.04 cannot work — they only ship WebKitGTK 4.0.
+
+**Fedora 38+**
+
+```sh
+sudo dnf group install "C Development Tools and Libraries"
+sudo dnf install nodejs npm rust cargo webkit2gtk4.1-devel gtk3-devel \
+  librsvg2-devel
+```
+
+For anything else, follow the Linux section of
+[Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/); this is a
+stock Tauri 2 app and needs nothing beyond it.
+
+### Build and install
+
+```sh
+git clone https://github.com/chrisaso/DZL.git && cd DZL
 ./scripts/install.sh
 ```
 
@@ -80,15 +128,39 @@ system files touched. DZL then appears in your application menu, and `dzl`
 works from a terminal if `~/.local/bin` is on your PATH.
 
 ```sh
-./scripts/install.sh --binary     # install the 22 MB binary instead of the
-                                  # 93 MB AppImage; uses your system WebKitGTK
+./scripts/install.sh --binary     # install the 26 MB binary instead of the
+                                  # 94 MB AppImage; uses your system WebKitGTK
+./scripts/install.sh --no-build   # fail instead of building
 ./scripts/install.sh --uninstall  # remove it, keeping your settings
 ./scripts/install.sh --uninstall --purge   # remove settings too
 ```
 
+`PREFIX=/some/where` installs somewhere other than `~/.local`.
+
 Uninstalling never touches your installed mods or their symlinks.
 
-Building needs Node and Rust; running does not.
+Building needs Node and Rust; running does not. The AppImage still needs
+WebKitGTK 4.1 and GTK 3 on the host — GTK is deliberately not bundled, for the
+reasons under [Building by hand](#building-by-hand).
+
+Off Arch, `--binary` or a native package below is the more predictable route:
+the AppImage build exists to route around linuxdeploy bugs that only bite on a
+current Arch system, and it has not been exercised anywhere else.
+
+### Let your package manager own it instead
+
+`npm run tauri build` also writes native packages:
+
+```sh
+npm run tauri build
+sudo apt install ./src-tauri/target/release/bundle/deb/DZL_0.1.0_amd64.deb
+sudo dnf install ./src-tauri/target/release/bundle/rpm/DZL-0.1.0-1.x86_64.rpm
+```
+
+The `.deb` declares `libayatana-appindicator3-1` because that is Tauri's
+default for a tray app. DZL does not actually link it — the tray is a
+[ksni](https://crates.io/crates/ksni) StatusNotifierItem over D-Bus — but you
+will need the package present to satisfy `apt` regardless.
 
 ## Building by hand
 
