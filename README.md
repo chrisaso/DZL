@@ -96,9 +96,16 @@ Those are built on Ubuntu 22.04, so they run on glibc 2.35 and newer — Debian
 12+, Ubuntu 22.04+, Fedora and Arch all qualify. Debian 11 and Ubuntu 20.04 do
 not, and neither ships WebKitGTK 4.1 anyway.
 
+The `.deb` is verified on Ubuntu 26.04: it installs from the release page and
+the app runs, with the tray, the server list's live queries and the
+`vm.max_map_count` fix all working. Its `libgtk-3-0` dependency still resolves
+there — Ubuntu's 64-bit `time_t` transition renamed the package to
+`libgtk-3-0t64`, which provides the old name — so building against 22.04 for the
+glibc floor costs nothing on current releases.
+
 Building it yourself is the better route on Arch, and the one you want for
-development. Only Arch is tested — the other distros below are the documented
-dependency sets, not verified ones.
+development. Only Arch is tested for *building* — the dependency sets below for
+other distros are documented, not verified.
 
 ### Build dependencies
 
