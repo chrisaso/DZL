@@ -51,6 +51,7 @@ function requirements(overrides: Partial<JoinRequirements> = {}): JoinRequiremen
     updateModsOnJoin: false,
     maxMapCountOk: true,
     steamRunning: false,
+    wrapperHookOk: true,
     ...overrides,
   };
 }

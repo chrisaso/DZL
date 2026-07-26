@@ -17,6 +17,7 @@ import {
   Spinner,
   TextInput,
 } from "./ui";
+import { WrapperSettings } from "./WrapperSettings";
 
 function Section({
   title,
@@ -103,7 +104,7 @@ function SetupSummary({ issues }: { issues: SetupIssue[] }) {
   );
 }
 
-function StatusRow({
+export function StatusRow({
   label,
   ok,
   value,
@@ -443,6 +444,13 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
               Save arguments
             </Button>
           </div>
+        </Section>
+
+        <Section
+          title="Wrappers"
+          description="gamescope and GameMode, run around the game."
+        >
+          <WrapperSettings config={config} save={save} reload={reload} />
         </Section>
       </div>
     </div>
