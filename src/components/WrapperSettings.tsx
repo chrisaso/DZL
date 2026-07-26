@@ -149,7 +149,9 @@ export function WrapperSettings({
   }
 
   const nothingInstalled = !status.gamescopeInstalled && !status.gamemodeInstalled;
-  const installLabel = status.hook === "notInstalled" ? "Install" : "Reinstall";
+  // Only an installed hook can be reinstalled; anything else is a first install,
+  // whatever Steam happens to be holding.
+  const installLabel = status.hook === "installed" ? "Reinstall" : "Install";
 
   return (
     <>
@@ -204,17 +206,10 @@ export function WrapperSettings({
       )}
 
       {status.hook === "changed" && (
-        <Banner
-          tone="warn"
-          title="Steam's launch options were changed outside DZL"
-          action={
-            <Button variant="secondary" disabled={busy} onClick={() => install(true)}>
-              Reinstall
-            </Button>
-          }
-        >
-          Steam holds <Code>{status.launchOptions ?? ""}</Code> for DayZ, so these
-          settings do nothing until the hook is put back.
+        <Banner tone="warn" title="Steam holds launch options DZL did not write">
+          These settings do nothing until Install points Steam at DZL's script.
+          Steam currently has:
+          <Code>{status.launchOptions ?? ""}</Code>
         </Banner>
       )}
 

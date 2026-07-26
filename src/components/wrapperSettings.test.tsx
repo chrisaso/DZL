@@ -143,7 +143,9 @@ describe("WrapperSettings", () => {
     );
     renderWrapper(config({ gamescope: true }));
 
-    await waitFor(() => screen.getByText(/changed outside/i));
+    await waitFor(() => screen.getByText(/DZL did not write/i));
+    expect(screen.getByText("gamescope -f -- %command%")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^install$/i })).toBeTruthy();
   });
 
   it("offers nothing to hook when neither wrapper is installed", async () => {
