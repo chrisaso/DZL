@@ -6,7 +6,16 @@
 //! `%command%`. DZL points that at this script once and then owns the script,
 //! so changing a setting never touches Steam's config again.
 
-use crate::commands::config::{DisplayMode, WrapperConfig};
+use crate::commands::config::{AppConfig, DisplayMode, WrapperConfig};
+use crate::commands::system::{
+    binary_exists, detect_steam_path, steam_root, steam_running, DAYZ_APP_ID,
+};
+use crate::steam_vdf::{find_local_config, read_launch_options, write_launch_options, LocalConfig};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use tauri::Manager;
+
+const SCRIPT_NAME: &str = "dzl-wrap.sh";
 
 /// Splits a free-form argument string, honouring single and double quotes so
 /// `--filter 'nearest thing'` stays one argument.
@@ -280,6 +289,259 @@ pub fn import_launch_options(value: &str, script_path: &str) -> ImportResult {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum HookState {
+    NotInstalled,
+    Installed,
+    /// Steam holds something else, so it was changed outside DZL.
+    Changed,
+    /// Steam's config could not be read at all.
+    Unreadable,
+}
+
+/// Everything the Wrappers section needs to describe itself.
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WrapperStatus {
+    pub hook: HookState,
+    /// What Steam currently holds for DayZ, escapes already resolved.
+    pub launch_options: Option<String>,
+    pub script_path: String,
+    pub expected_hook: String,
+    pub preview: String,
+    /// Steam account whose config holds the hook.
+    pub account_id: Option<String>,
+    pub steam_running: bool,
+    pub gamescope_installed: bool,
+    pub gamescope_version: Option<String>,
+    pub gamemode_installed: bool,
+}
+
+pub(crate) fn hook_state(current: Option<&str>, expected: &str) -> HookState {
+    match current.map(str::trim) {
+        None | Some("") => HookState::NotInstalled,
+        Some(value) if value == expected => HookState::Installed,
+        Some(_) => HookState::Changed,
+    }
+}
+
+/// Whether the wrapper settings can actually take effect. Nothing enabled needs
+/// no hook, so an untouched install never warns about one.
+pub(crate) fn hook_satisfied(wrapper: &WrapperConfig, state: HookState) -> bool {
+    if !wrapper.gamemode && !wrapper.gamescope {
+        return true;
+    }
+    state == HookState::Installed
+}
+
+pub(crate) fn script_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no-data-dir: {}", e))?;
+    Ok(dir.join(SCRIPT_NAME))
+}
+
+fn expected_hook(path: &Path) -> String {
+    format!("{} %command%", path.display())
+}
+
+/// Writes the script for the current settings and makes it executable.
+pub(crate) fn write_script(app: &tauri::AppHandle, config: &AppConfig) -> Result<PathBuf, String> {
+    let path = script_path(app)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("script-failed: {}", e))?;
+    }
+    std::fs::write(&path, wrapper_script(&config.wrapper))
+        .map_err(|e| format!("script-failed: {}: {}", path.display(), e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("script-failed: {}", e))?;
+    }
+
+    Ok(path)
+}
+
+fn local_config(config: &AppConfig) -> Result<LocalConfig, String> {
+    let steam_path = config
+        .steam_path
+        .clone()
+        .filter(|p| Path::new(p).is_dir())
+        .or_else(detect_steam_path)
+        .ok_or_else(|| "no-steam-path: could not find your Steam library".to_string())?;
+    find_local_config(&steam_root(&steam_path))
+}
+
+/// What Steam holds for DayZ right now. `Ok(None)` means the file was readable
+/// and simply had no value.
+pub(crate) fn current_launch_options(config: &AppConfig) -> Result<Option<String>, String> {
+    let found = local_config(config)?;
+    let text = std::fs::read_to_string(&found.path)
+        .map_err(|e| format!("read-failed: {}: {}", found.path.display(), e))?;
+    Ok(read_launch_options(&text, DAYZ_APP_ID))
+}
+
+/// True when Steam's launch options point at our script. Used by the join
+/// preflight, so it never fails: an unreadable config just means not hooked.
+pub(crate) fn hook_installed(app: &tauri::AppHandle, config: &AppConfig) -> bool {
+    let Ok(path) = script_path(app) else {
+        return false;
+    };
+    let current = current_launch_options(config).ok().flatten();
+    hook_state(current.as_deref(), &expected_hook(&path)) == HookState::Installed
+}
+
+fn gamescope_version() -> Option<String> {
+    let output = crate::commands::system::external_command("gamescope")
+        .arg("--version")
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout).to_string()
+        + &String::from_utf8_lossy(&output.stderr);
+    // "gamescope version 3.16.25 (gcc 16.1.1)"
+    text.split_whitespace()
+        .skip_while(|w| *w != "version")
+        .nth(1)
+        .map(|v| v.to_string())
+}
+
+fn status(app: &tauri::AppHandle, config: &AppConfig) -> WrapperStatus {
+    let path = script_path(app).unwrap_or_else(|_| PathBuf::from(SCRIPT_NAME));
+    let expected = expected_hook(&path);
+
+    let (hook, launch_options, account_id) = match local_config(config) {
+        Ok(found) => match std::fs::read_to_string(&found.path) {
+            Ok(text) => {
+                let current = read_launch_options(&text, DAYZ_APP_ID);
+                (
+                    hook_state(current.as_deref(), &expected),
+                    current,
+                    Some(found.account_id),
+                )
+            }
+            Err(_) => (HookState::Unreadable, None, Some(found.account_id)),
+        },
+        Err(_) => (HookState::Unreadable, None, None),
+    };
+
+    let gamescope_installed = binary_exists("gamescope");
+    WrapperStatus {
+        hook,
+        launch_options,
+        script_path: path.display().to_string(),
+        expected_hook: expected,
+        preview: preview_line(&config.wrapper),
+        account_id,
+        steam_running: steam_running(),
+        gamescope_installed,
+        gamescope_version: gamescope_installed.then(gamescope_version).flatten(),
+        gamemode_installed: binary_exists("gamemoderun"),
+    }
+}
+
+#[tauri::command]
+pub fn get_wrapper_status(app: tauri::AppHandle) -> WrapperStatus {
+    let config = crate::commands::config::read_config(&app);
+    status(&app, &config)
+}
+
+/// Points Steam's launch options at our script, importing whatever was there.
+///
+/// Steam holds `localconfig.vdf` in memory and writes it back when it exits, so
+/// the client has to be down for the edit to survive. `replace` is the user's
+/// answer to launch options DZL could not parse.
+#[tauri::command]
+pub async fn install_wrapper_hook(
+    app: tauri::AppHandle,
+    replace: bool,
+) -> Result<WrapperStatus, String> {
+    let mut config = crate::commands::config::read_config(&app);
+    let found = local_config(&config)?;
+    let path = script_path(&app)?;
+    let expected = expected_hook(&path);
+
+    let text = std::fs::read_to_string(&found.path)
+        .map_err(|e| format!("read-failed: {}: {}", found.path.display(), e))?;
+    let current = read_launch_options(&text, DAYZ_APP_ID);
+
+    match import_launch_options(
+        current.as_deref().unwrap_or_default(),
+        &path.display().to_string(),
+    ) {
+        ImportResult::Empty | ImportResult::AlreadyHooked => {}
+        ImportResult::Parsed {
+            wrapper,
+            trailing_args,
+        } => {
+            config.wrapper = WrapperConfig {
+                previous_launch_options: current.clone(),
+                ..wrapper
+            };
+            for arg in trailing_args {
+                if !config.custom_args.contains(&arg) {
+                    config.custom_args.push(arg);
+                }
+            }
+        }
+        ImportResult::Unparseable(original) => {
+            if !replace {
+                return Err(format!("import-conflict: {}", original));
+            }
+            config.wrapper.previous_launch_options = current.clone();
+        }
+    }
+
+    write_script(&app, &config)?;
+
+    // Steam has to be down for the write to survive, and back up afterwards so
+    // the user can launch. A failed write is reported after Steam is restored.
+    let restart = steam_running();
+    if restart {
+        crate::commands::system::shutdown_steam().await?;
+    }
+    let write = write_launch_options(&found, DAYZ_APP_ID, &expected);
+    if restart {
+        crate::commands::system::start_steam().await?;
+    }
+    write?;
+
+    crate::commands::config::save_config(&app, &config)?;
+    Ok(status(&app, &config))
+}
+
+/// Puts back whatever Steam held before DZL hooked it, and deletes the script.
+#[tauri::command]
+pub async fn remove_wrapper_hook(app: tauri::AppHandle) -> Result<WrapperStatus, String> {
+    let mut config = crate::commands::config::read_config(&app);
+    let found = local_config(&config)?;
+    let restore = config
+        .wrapper
+        .previous_launch_options
+        .clone()
+        .unwrap_or_default();
+
+    let restart = steam_running();
+    if restart {
+        crate::commands::system::shutdown_steam().await?;
+    }
+    let write = write_launch_options(&found, DAYZ_APP_ID, &restore);
+    if restart {
+        crate::commands::system::start_steam().await?;
+    }
+    write?;
+
+    if let Ok(path) = script_path(&app) {
+        let _ = std::fs::remove_file(path);
+    }
+    config.wrapper.previous_launch_options = None;
+    crate::commands::config::save_config(&app, &config)?;
+    Ok(status(&app, &config))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -421,6 +683,34 @@ mod tests {
     #[test]
     fn shell_quote_handles_embedded_quotes() {
         assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
+
+    #[test]
+    fn hook_state_compares_against_the_expected_line() {
+        let expected = "/home/u/.local/share/com.dzl.launcher/dzl-wrap.sh %command%";
+        assert_eq!(hook_state(None, expected), HookState::NotInstalled);
+        assert_eq!(hook_state(Some(""), expected), HookState::NotInstalled);
+        assert_eq!(hook_state(Some(expected), expected), HookState::Installed);
+        assert_eq!(
+            hook_state(Some("gamescope -f -- %command%"), expected),
+            HookState::Changed
+        );
+    }
+
+    #[test]
+    fn the_hook_is_only_needed_when_a_wrapper_is_enabled() {
+        assert!(hook_satisfied(
+            &WrapperConfig::default(),
+            HookState::NotInstalled
+        ));
+
+        let on = WrapperConfig {
+            gamescope: true,
+            ..WrapperConfig::default()
+        };
+        assert!(!hook_satisfied(&on, HookState::NotInstalled));
+        assert!(!hook_satisfied(&on, HookState::Changed));
+        assert!(hook_satisfied(&on, HookState::Installed));
     }
 
     #[test]
