@@ -222,6 +222,14 @@ export function JoinModal({
         }
       >
         <div className="space-y-4">
+          {!requirements.wrapperHookOk && (
+            <Banner tone="warn" title="Wrapper settings are not active">
+              gamescope or GameMode is switched on in settings, but Steam's launch
+              options no longer point at DZL's script, so the game will start
+              without them. Reinstall the hook under Settings → Wrappers.
+            </Banner>
+          )}
+
           <div className="grid grid-cols-3 gap-3 text-sm">
             <div>
               <p className="text-xs text-muted uppercase tracking-wider">Players</p>
