@@ -152,6 +152,134 @@ pub(crate) fn wrapper_script(wrapper: &WrapperConfig) -> String {
     out
 }
 
+/// What DZL made of the launch options Steam already held.
+#[derive(Debug)]
+pub enum ImportResult {
+    Empty,
+    AlreadyHooked,
+    Parsed {
+        wrapper: WrapperConfig,
+        trailing_args: Vec<String>,
+    },
+    /// The original value, for the user to accept losing or to keep.
+    Unparseable(String),
+}
+
+/// Sequences that mean the value is doing something we will not try to model.
+const SHELL_METACHARS: &[&str] = &["&&", "||", ";", "|", "$(", "`", ">", "<"];
+
+fn is_wrapper_binary(token: &str, name: &str) -> bool {
+    token == name || token.ends_with(&format!("/{}", name))
+}
+
+/// Reads launch options already set in Steam into wrapper settings.
+///
+/// The grammar is deliberately narrow: leading `VAR=value` assignments, then an
+/// optional `gamemoderun`, then an optional `gamescope <flags> --`, then
+/// `%command%`, then any trailing game arguments. Anything else is refused
+/// rather than guessed at, because guessing here silently changes how somebody's
+/// game starts.
+pub fn import_launch_options(value: &str, script_path: &str) -> ImportResult {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return ImportResult::Empty;
+    }
+    if trimmed.starts_with(script_path) {
+        return ImportResult::AlreadyHooked;
+    }
+    if SHELL_METACHARS.iter().any(|m| trimmed.contains(m)) {
+        return ImportResult::Unparseable(trimmed.to_string());
+    }
+
+    let tokens = split_args(trimmed);
+    let mut wrapper = WrapperConfig::default();
+    let mut index = 0;
+
+    while let Some(token) = tokens.get(index) {
+        let Some((name, val)) = token.split_once('=') else {
+            break;
+        };
+        if !valid_env_name(name) {
+            break;
+        }
+        wrapper.env.push(format!("{}={}", name, val));
+        index += 1;
+    }
+
+    if tokens
+        .get(index)
+        .is_some_and(|t| is_wrapper_binary(t, "gamemoderun"))
+    {
+        wrapper.gamemode = true;
+        index += 1;
+    }
+
+    if tokens
+        .get(index)
+        .is_some_and(|t| is_wrapper_binary(t, "gamescope"))
+    {
+        wrapper.gamescope = true;
+        index += 1;
+
+        let mut extra: Vec<String> = Vec::new();
+        let mut closed = false;
+        let mut mode_seen = false;
+
+        while let Some(token) = tokens.get(index) {
+            index += 1;
+            match token.as_str() {
+                "--" => {
+                    closed = true;
+                    break;
+                }
+                "-f" | "--fullscreen" => {
+                    wrapper.display_mode = DisplayMode::Fullscreen;
+                    mode_seen = true;
+                }
+                "-b" | "--borderless" => {
+                    wrapper.display_mode = DisplayMode::Borderless;
+                    mode_seen = true;
+                }
+                "--force-grab-cursor" => wrapper.force_grab_cursor = true,
+                "-W" | "--output-width" | "-H" | "--output-height" | "-r"
+                | "--nested-refresh" => {
+                    let Some(number) = tokens.get(index).and_then(|n| n.parse::<u32>().ok()) else {
+                        return ImportResult::Unparseable(trimmed.to_string());
+                    };
+                    index += 1;
+                    match token.as_str() {
+                        "-W" | "--output-width" => wrapper.width = Some(number),
+                        "-H" | "--output-height" => wrapper.height = Some(number),
+                        _ => wrapper.refresh = Some(number),
+                    }
+                }
+                other if other.starts_with('-') => extra.push(other.to_string()),
+                // A bare word before `--` is another wrapper we cannot model.
+                _ => return ImportResult::Unparseable(trimmed.to_string()),
+            }
+        }
+
+        if !closed {
+            return ImportResult::Unparseable(trimmed.to_string());
+        }
+        if !mode_seen {
+            // Neither -f nor -b means gamescope opens an ordinary window.
+            wrapper.display_mode = DisplayMode::Windowed;
+        }
+        wrapper.extra_args = extra.join(" ");
+    }
+
+    if tokens.get(index).map(String::as_str) != Some("%command%") {
+        return ImportResult::Unparseable(trimmed.to_string());
+    }
+    index += 1;
+
+    ImportResult::Parsed {
+        wrapper,
+        trailing_args: tokens[index..].to_vec(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,6 +421,127 @@ mod tests {
     #[test]
     fn shell_quote_handles_embedded_quotes() {
         assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
+
+    #[test]
+    fn imports_the_real_world_string() {
+        let result = import_launch_options(
+            "LD_PRELOAD=\"\" gamemoderun gamescope -W 2560 -H 1440 -f -r 180 --force-grab-cursor -- %command%",
+            "/tmp/dzl-wrap.sh",
+        );
+        let ImportResult::Parsed {
+            wrapper,
+            trailing_args,
+        } = result
+        else {
+            panic!("expected a parse, got {:?}", result);
+        };
+
+        assert!(wrapper.gamemode);
+        assert!(wrapper.gamescope);
+        assert_eq!(wrapper.width, Some(2560));
+        assert_eq!(wrapper.height, Some(1440));
+        assert_eq!(wrapper.refresh, Some(180));
+        assert_eq!(wrapper.display_mode, DisplayMode::Fullscreen);
+        assert!(wrapper.force_grab_cursor);
+        assert_eq!(wrapper.env, vec!["LD_PRELOAD=".to_string()]);
+        assert_eq!(wrapper.extra_args, "");
+        assert!(trailing_args.is_empty());
+    }
+
+    #[test]
+    fn imports_gamescope_alone_and_keeps_unknown_flags() {
+        let result = import_launch_options("gamescope -b --hdr-enabled -- %command%", "/tmp/w.sh");
+        let ImportResult::Parsed { wrapper, .. } = result else {
+            panic!("expected a parse")
+        };
+
+        assert!(!wrapper.gamemode);
+        assert_eq!(wrapper.display_mode, DisplayMode::Borderless);
+        assert_eq!(wrapper.extra_args, "--hdr-enabled");
+    }
+
+    #[test]
+    fn imports_long_form_gamescope_flags() {
+        let result = import_launch_options(
+            "gamescope --output-width 3440 --output-height 1440 --nested-refresh 144 --fullscreen -- %command%",
+            "/tmp/w.sh",
+        );
+        let ImportResult::Parsed { wrapper, .. } = result else {
+            panic!("expected a parse")
+        };
+
+        assert_eq!(wrapper.width, Some(3440));
+        assert_eq!(wrapper.height, Some(1440));
+        assert_eq!(wrapper.refresh, Some(144));
+        assert_eq!(wrapper.display_mode, DisplayMode::Fullscreen);
+    }
+
+    #[test]
+    fn gamescope_without_a_mode_flag_imports_as_windowed() {
+        let result = import_launch_options("gamescope -W 1920 -- %command%", "/tmp/w.sh");
+        let ImportResult::Parsed { wrapper, .. } = result else {
+            panic!("expected a parse")
+        };
+        assert_eq!(wrapper.display_mode, DisplayMode::Windowed);
+    }
+
+    #[test]
+    fn imports_gamemode_alone() {
+        let result = import_launch_options("gamemoderun %command%", "/tmp/w.sh");
+        let ImportResult::Parsed { wrapper, .. } = result else {
+            panic!("expected a parse")
+        };
+        assert!(wrapper.gamemode);
+        assert!(!wrapper.gamescope);
+    }
+
+    #[test]
+    fn trailing_arguments_are_kept_separately() {
+        let result = import_launch_options("gamemoderun %command% -noSplash", "/tmp/w.sh");
+        let ImportResult::Parsed { trailing_args, .. } = result else {
+            panic!("expected a parse")
+        };
+        assert_eq!(trailing_args, vec!["-noSplash".to_string()]);
+    }
+
+    #[test]
+    fn an_empty_value_imports_nothing() {
+        assert!(matches!(
+            import_launch_options("   ", "/tmp/w.sh"),
+            ImportResult::Empty
+        ));
+    }
+
+    #[test]
+    fn our_own_hook_is_recognised() {
+        assert!(matches!(
+            import_launch_options("/tmp/w.sh %command%", "/tmp/w.sh"),
+            ImportResult::AlreadyHooked
+        ));
+    }
+
+    #[test]
+    fn anything_outside_the_grammar_is_refused() {
+        for value in [
+            "mangohud %command%",
+            "sh -c 'gamescope -- %command%'",
+            "gamemoderun %command% && echo done",
+            "gamescope -f %command%",
+            "gamescope -f -- steam-run %command%",
+            "gamemoderun /usr/bin/something %command%",
+            "gamemoderun gamescope -f --",
+            "gamescope -W wide -- %command%",
+        ] {
+            assert!(
+                matches!(
+                    import_launch_options(value, "/tmp/w.sh"),
+                    ImportResult::Unparseable(_)
+                ),
+                "should refuse: {}",
+                value
+            );
+        }
     }
 
     #[test]
