@@ -167,6 +167,31 @@ export function TextInput({
   );
 }
 
+export function TextArea({
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  rows = 3,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  placeholder?: string;
+  rows?: number;
+}) {
+  return (
+    <textarea
+      value={value}
+      rows={rows}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      className={`${INPUT_CLASS} font-mono text-xs resize-y`}
+    />
+  );
+}
+
 export function Select({
   value,
   onChange,

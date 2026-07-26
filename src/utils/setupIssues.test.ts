@@ -6,6 +6,21 @@ import {
 } from "./setupIssues";
 import type { AppConfig, EnvironmentReport } from "../types/launcher";
 
+function wrapper(): AppConfig["wrapper"] {
+  return {
+    gamemode: false,
+    gamescope: false,
+    width: null,
+    height: null,
+    refresh: null,
+    displayMode: "fullscreen",
+    forceGrabCursor: false,
+    extraArgs: "",
+    env: [],
+    previousLaunchOptions: null,
+  };
+}
+
 function config(overrides: Partial<AppConfig> = {}): AppConfig {
   return {
     steamPath: "/steamapps",
@@ -17,6 +32,7 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     hideToTrayOnLaunch: false,
     launchOptions: [],
     customArgs: [],
+    wrapper: wrapper(),
     setupComplete: true,
     ...overrides,
   };
@@ -38,6 +54,8 @@ function env(overrides: Partial<EnvironmentReport> = {}): EnvironmentReport {
     steamRunning: false,
     dayzRunning: false,
     geoLookupAvailable: true,
+    gamescopeInstalled: true,
+    gamemodeInstalled: true,
     ...overrides,
   };
 }
