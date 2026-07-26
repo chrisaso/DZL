@@ -41,6 +41,15 @@ pub(crate) fn dayz_dir(steam_path: &str) -> std::path::PathBuf {
     std::path::Path::new(steam_path).join("common/DayZ")
 }
 
+/// Steam's root directory, the parent of a `steamapps` path. `userdata` and
+/// `config` live here.
+pub(crate) fn steam_root(steam_path: &str) -> std::path::PathBuf {
+    std::path::Path::new(steam_path)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from(steam_path))
+}
+
 /// The workshop content directory for DayZ inside a `steamapps` path.
 pub(crate) fn workshop_dir(steam_path: &str) -> std::path::PathBuf {
     std::path::Path::new(steam_path).join(format!("workshop/content/{}", DAYZ_APP_ID))
@@ -216,6 +225,10 @@ pub struct EnvironmentReport {
     pub steam_running: bool,
     pub dayz_running: bool,
     pub geo_lookup_available: bool,
+    /// gamescope and GameMode drive the Wrappers settings, which are hidden
+    /// rather than offered when the binaries are absent.
+    pub gamescope_installed: bool,
+    pub gamemode_installed: bool,
 }
 
 /// The exact shell command a user can run themselves if they would rather not
@@ -263,6 +276,8 @@ pub fn check_environment(app: tauri::AppHandle) -> EnvironmentReport {
         steam_running: steam_running(),
         dayz_running: dayz_running(),
         geo_lookup_available: binary_exists("geoiplookup") || binary_exists("whois"),
+        gamescope_installed: binary_exists("gamescope"),
+        gamemode_installed: binary_exists("gamemoderun"),
     }
 }
 

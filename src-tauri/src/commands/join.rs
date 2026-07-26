@@ -57,6 +57,10 @@ pub struct JoinRequirements {
     pub max_map_count_ok: bool,
     /// Whether Steam is up, so the UI knows to ask for approval first.
     pub steam_running: bool,
+    /// False only when gamescope or GameMode is switched on but Steam's launch
+    /// options no longer point at DZL's wrapper script, so the settings would
+    /// silently do nothing. Never blocks a join.
+    pub wrapper_hook_ok: bool,
 }
 
 pub(crate) fn check_requirements_logic(
@@ -64,6 +68,7 @@ pub(crate) fn check_requirements_logic(
     mods: &[ModRef],
     max_map_count: u64,
     steam_is_running: bool,
+    hook_installed: bool,
 ) -> JoinRequirements {
     let steam_path = config
         .steam_path
@@ -103,13 +108,28 @@ pub(crate) fn check_requirements_logic(
         update_mods_on_join: config.update_mods_on_join,
         max_map_count_ok: max_map_count == 0 || max_map_count >= REQUIRED_MAX_MAP_COUNT,
         steam_running: steam_is_running,
+        wrapper_hook_ok: crate::commands::wrapper::hook_satisfied(
+            &config.wrapper,
+            if hook_installed {
+                crate::commands::wrapper::HookState::Installed
+            } else {
+                crate::commands::wrapper::HookState::NotInstalled
+            },
+        ),
     }
 }
 
 #[tauri::command]
 pub fn check_join_requirements(app: tauri::AppHandle, mods: Vec<ModRef>) -> JoinRequirements {
     let config = read_config(&app);
-    check_requirements_logic(&config, &mods, read_max_map_count(), steam_running())
+    let hook_installed = crate::commands::wrapper::hook_installed(&app, &config);
+    check_requirements_logic(
+        &config,
+        &mods,
+        read_max_map_count(),
+        steam_running(),
+        hook_installed,
+    )
 }
 
 /// Relative link target for a mod, matching the `ln -sr` style links dayz-ctl
@@ -400,6 +420,9 @@ async fn run_join(app: &tauri::AppHandle, request: &JoinRequest) -> Result<(), S
     }
 
     emit(app, "launching", None, 0, 0, None);
+    // Steam runs the wrapper script, so it has to match the settings as they
+    // are right now rather than as they were when they were last saved.
+    let _ = crate::commands::wrapper::write_script(app, &config);
     let args = build_launch_command(
         &player_name,
         &request.mods,
@@ -504,7 +527,7 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let result = check_requirements_logic(&config, &mods(&["100", "200"]), 1_048_576, false);
+        let result = check_requirements_logic(&config, &mods(&["100", "200"]), 1_048_576, false, false);
 
         assert_eq!(result.missing_mods.len(), 1);
         assert_eq!(result.missing_mods[0].workshop_id, "200");
@@ -528,11 +551,11 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let all_present = check_requirements_logic(&config, &mods(&["100"]), 1_048_576, false);
+        let all_present = check_requirements_logic(&config, &mods(&["100"]), 1_048_576, false, false);
         assert!(!all_present.steam_login_needed);
         assert!(!all_present.player_name_needed);
 
-        let needs_download = check_requirements_logic(&config, &mods(&["100", "999"]), 1_048_576, false);
+        let needs_download = check_requirements_logic(&config, &mods(&["100", "999"]), 1_048_576, false, false);
         assert!(needs_download.steam_login_needed);
 
         fs::remove_dir_all(&base).unwrap();
@@ -548,7 +571,7 @@ mod tests {
             ..AppConfig::default()
         };
 
-        let result = check_requirements_logic(&config, &mods(&["999"]), 1_048_576, false);
+        let result = check_requirements_logic(&config, &mods(&["999"]), 1_048_576, false, false);
         assert_eq!(result.steam_login, None);
         assert!(
             result.steam_login_needed,
@@ -559,12 +582,39 @@ mod tests {
     }
 
     #[test]
+    fn requirements_report_the_wrapper_hook() {
+        let base = tmp_dir("wrapper");
+        let config = AppConfig {
+            steam_path: Some(base.to_str().unwrap().to_string()),
+            player_name: Some("Survivor".into()),
+            ..AppConfig::default()
+        };
+
+        // Wrappers off: nothing to warn about, whatever Steam holds.
+        let off = check_requirements_logic(&config, &[], 1_048_576, false, false);
+        assert!(off.wrapper_hook_ok);
+
+        let mut wants_wrapper = config.clone();
+        wants_wrapper.wrapper.gamescope = true;
+        let missing = check_requirements_logic(&wants_wrapper, &[], 1_048_576, false, false);
+        assert!(
+            !missing.wrapper_hook_ok,
+            "gamescope is on but Steam has no hook"
+        );
+
+        let hooked = check_requirements_logic(&wants_wrapper, &[], 1_048_576, false, true);
+        assert!(hooked.wrapper_hook_ok);
+
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
     fn check_requirements_flags_low_max_map_count() {
         let config = AppConfig::default();
-        let low = check_requirements_logic(&config, &[], 65_530, false);
+        let low = check_requirements_logic(&config, &[], 65_530, false, false);
         assert!(!low.max_map_count_ok);
 
-        let unknown = check_requirements_logic(&config, &[], 0, false);
+        let unknown = check_requirements_logic(&config, &[], 0, false, false);
         assert!(unknown.max_map_count_ok, "unknown value must not nag");
     }
 

@@ -107,6 +107,37 @@ pub(crate) fn default_launch_options() -> Vec<LaunchOption> {
     ]
 }
 
+/// How gamescope presents its window.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum DisplayMode {
+    #[default]
+    Fullscreen,
+    Borderless,
+    Windowed,
+}
+
+/// gamescope and GameMode settings, applied by the wrapper script DZL hooks
+/// into Steam's launch options. Everything is off by default, so an upgrade
+/// never changes how the game starts.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WrapperConfig {
+    pub gamemode: bool,
+    pub gamescope: bool,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub refresh: Option<u32>,
+    pub display_mode: DisplayMode,
+    pub force_grab_cursor: bool,
+    /// Free-form gamescope arguments, whitespace separated.
+    pub extra_args: String,
+    /// `KEY=value` entries exported before the wrappers run.
+    pub env: Vec<String>,
+    /// Whatever Steam held before DZL hooked it, so Remove can put it back.
+    pub previous_launch_options: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppConfig {
@@ -129,6 +160,8 @@ pub struct AppConfig {
     pub launch_options: Vec<LaunchOption>,
     /// Free-form extra arguments appended verbatim to the launch command.
     pub custom_args: Vec<String>,
+    /// gamescope and GameMode, applied through the hooked wrapper script.
+    pub wrapper: WrapperConfig,
     pub setup_complete: bool,
 }
 
@@ -146,6 +179,7 @@ impl Default for AppConfig {
             hide_to_tray_on_launch: false,
             launch_options: default_launch_options(),
             custom_args: Vec::new(),
+            wrapper: WrapperConfig::default(),
             setup_complete: false,
         }
     }
@@ -205,7 +239,7 @@ pub(crate) fn read_config(app: &tauri::AppHandle) -> AppConfig {
     config
 }
 
-fn write_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
+pub(crate) fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
     let store = app.store(STORE_PATH).map_err(|e| e.to_string())?;
     store.set(
         CONFIG_KEY,
@@ -223,7 +257,11 @@ pub fn get_config(app: tauri::AppHandle) -> AppConfig {
 pub fn set_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
     let mut config = config;
     config.launch_options = merge_launch_options(&config.launch_options);
-    write_config(&app, &config)?;
+    save_config(&app, &config)?;
+    // Keep the wrapper script in step with the settings that describe it. Best
+    // effort on purpose: saving a setting must not fail because the script
+    // could not be written, and the Wrappers section reports the state anyway.
+    let _ = crate::commands::wrapper::write_script(&app, &config);
     Ok(config)
 }
 
@@ -231,20 +269,20 @@ pub fn set_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig,
 pub fn set_steam_path(app: tauri::AppHandle, steam_path: String) -> Result<(), String> {
     let mut config = read_config(&app);
     config.steam_path = Some(steam_path);
-    write_config(&app, &config)
+    save_config(&app, &config)
 }
 
 #[tauri::command]
 pub fn set_player_name(app: tauri::AppHandle, player_name: String) -> Result<(), String> {
     let mut config = read_config(&app);
     config.player_name = Some(player_name);
-    write_config(&app, &config)
+    save_config(&app, &config)
 }
 
 #[tauri::command]
 pub fn reset_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     let config = AppConfig::default();
-    write_config(&app, &config)?;
+    save_config(&app, &config)?;
     Ok(config)
 }
 
@@ -346,6 +384,58 @@ mod tests {
     #[test]
     fn hiding_to_tray_is_opt_in() {
         assert!(!AppConfig::default().hide_to_tray_on_launch);
+    }
+
+    #[test]
+    fn wrapper_defaults_to_off() {
+        let wrapper = AppConfig::default().wrapper;
+        assert!(!wrapper.gamemode);
+        assert!(!wrapper.gamescope);
+        assert_eq!(wrapper.width, None);
+        assert_eq!(wrapper.display_mode, DisplayMode::Fullscreen);
+        assert!(wrapper.env.is_empty());
+        assert_eq!(wrapper.previous_launch_options, None);
+    }
+
+    #[test]
+    fn config_without_a_wrapper_section_still_loads() {
+        let legacy = serde_json::json!({
+            "playerName": "Survivor",
+            "customArgs": ["-newUI"],
+        });
+        let config: AppConfig = serde_json::from_value(legacy).unwrap();
+        assert!(
+            !config.wrapper.gamescope,
+            "missing section falls back to defaults"
+        );
+        assert_eq!(config.custom_args, vec!["-newUI".to_string()]);
+    }
+
+    #[test]
+    fn wrapper_round_trips_through_json() {
+        let wrapper = WrapperConfig {
+            gamemode: true,
+            gamescope: true,
+            width: Some(2560),
+            height: Some(1440),
+            refresh: Some(180),
+            display_mode: DisplayMode::Borderless,
+            force_grab_cursor: true,
+            extra_args: "--hdr-enabled".into(),
+            env: vec!["LD_PRELOAD=".into()],
+            previous_launch_options: Some("old string".into()),
+        };
+        let config = AppConfig {
+            wrapper: wrapper.clone(),
+            ..AppConfig::default()
+        };
+
+        let json = serde_json::to_value(&config).unwrap();
+        assert_eq!(json["wrapper"]["forceGrabCursor"], true);
+        assert_eq!(json["wrapper"]["displayMode"], "borderless");
+
+        let back: AppConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(back.wrapper, wrapper);
     }
 
     #[test]
