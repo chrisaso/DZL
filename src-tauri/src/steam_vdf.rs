@@ -5,6 +5,8 @@
 //! the one line that matters, replace or insert it, and hand back the rest
 //! byte for byte.
 
+use std::path::{Path, PathBuf};
+
 /// Keys leading to the per-app block inside `localconfig.vdf`.
 const APPS_PATH: &[&str] = &["UserLocalConfigStore", "Software", "Valve", "Steam", "apps"];
 const LAUNCH_OPTIONS: &str = "LaunchOptions";
@@ -192,9 +194,114 @@ pub fn set_launch_options(vdf: &str, app_id: &str, value: &str) -> Result<String
     Ok(joined)
 }
 
+/// Steam's per-account settings file, and the account it belongs to.
+#[derive(Debug, Clone)]
+pub struct LocalConfig {
+    pub path: PathBuf,
+    pub account_id: String,
+}
+
+/// Steam ids in `loginusers.vdf` are 64 bit; `userdata` directories use the
+/// low 32 bits.
+const STEAM_ID_BASE: u64 = 76_561_197_960_265_728;
+
+/// The account Steam last signed in as, when it bothered to record one. Current
+/// Steam writes no `MostRecent` key at all, so this is a bonus rather than the
+/// main route.
+fn most_recent_account(steam_root: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(steam_root.join("config/loginusers.vdf")).ok()?;
+    let mut current: Option<u64> = None;
+    for line in text.lines() {
+        if let Some(key) = parse_key_only(line) {
+            current = key.parse::<u64>().ok();
+            continue;
+        }
+        if let Some((key, value)) = parse_pair(line) {
+            if same_key(key, "MostRecent") && value == "1" {
+                return current?.checked_sub(STEAM_ID_BASE).map(|a| a.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Picks the `localconfig.vdf` to edit. One account is the common case; more
+/// than one falls back to whatever Steam marked most recent, then to whichever
+/// file Steam wrote last.
+pub fn find_local_config(steam_root: &Path) -> Result<LocalConfig, String> {
+    let userdata = steam_root.join("userdata");
+    let mut candidates: Vec<LocalConfig> = std::fs::read_dir(&userdata)
+        .map_err(|e| {
+            format!(
+                "no-steam-account: cannot read {}: {}",
+                userdata.display(),
+                e
+            )
+        })?
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| {
+            let path = entry.path().join("config/localconfig.vdf");
+            if !path.is_file() {
+                return None;
+            }
+            Some(LocalConfig {
+                account_id: entry.file_name().to_string_lossy().to_string(),
+                path,
+            })
+        })
+        .collect();
+
+    if candidates.is_empty() {
+        return Err(format!(
+            "no-steam-account: no localconfig.vdf under {}",
+            userdata.display()
+        ));
+    }
+    if candidates.len() == 1 {
+        return Ok(candidates.remove(0));
+    }
+
+    if let Some(wanted) = most_recent_account(steam_root) {
+        if let Some(i) = candidates.iter().position(|c| c.account_id == wanted) {
+            return Ok(candidates.remove(i));
+        }
+    }
+
+    let newest = candidates
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, c)| std::fs::metadata(&c.path).and_then(|m| m.modified()).ok())
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    Ok(candidates.remove(newest))
+}
+
+/// Replaces the app's launch options, keeping a copy of the file first and
+/// swapping the new one in with a rename, so an interrupted write cannot leave
+/// a half finished config behind.
+///
+/// Steam holds this file in memory and writes it back when it exits, so the
+/// client has to be down for the edit to survive. Callers enforce that.
+pub fn write_launch_options(config: &LocalConfig, app_id: &str, value: &str) -> Result<(), String> {
+    let original = std::fs::read_to_string(&config.path)
+        .map_err(|e| format!("read-failed: {}: {}", config.path.display(), e))?;
+    let updated = set_launch_options(&original, app_id, value)?;
+
+    let backup = config.path.with_extension("vdf.dzl.bak");
+    std::fs::write(&backup, &original)
+        .map_err(|e| format!("backup-failed: {}: {}", backup.display(), e))?;
+
+    let temp = config.path.with_extension("vdf.dzl.tmp");
+    std::fs::write(&temp, &updated)
+        .map_err(|e| format!("write-failed: {}: {}", temp.display(), e))?;
+    std::fs::rename(&temp, &config.path)
+        .map_err(|e| format!("write-failed: {}: {}", config.path.display(), e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     /// A cut-down localconfig.vdf with the same shape as the real thing.
     fn sample(app_body: &str) -> String {
@@ -311,4 +418,83 @@ mod tests {
         );
         assert_eq!(out.lines().count(), vdf.lines().count());
     }
+
+    fn tmp_root(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("dzl-vdf-test-{}", name));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn make_account(root: &std::path::Path, id: &str, body: &str) {
+        let dir = root.join("userdata").join(id).join("config");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("localconfig.vdf"), body).unwrap();
+    }
+
+    #[test]
+    fn finds_the_only_account() {
+        let root = tmp_root("one");
+        make_account(&root, "419704515", &sample(""));
+
+        let found = find_local_config(&root).unwrap();
+        assert_eq!(found.account_id, "419704515");
+        assert!(found
+            .path
+            .ends_with("userdata/419704515/config/localconfig.vdf"));
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn prefers_the_most_recent_account_when_steam_marks_one() {
+        let root = tmp_root("recent");
+        make_account(&root, "111", &sample(""));
+        make_account(&root, "222", &sample(""));
+        fs::create_dir_all(root.join("config")).unwrap();
+        // 76561197960265728 + 222 identifies account 222.
+        fs::write(
+            root.join("config/loginusers.vdf"),
+            "\"users\"\n{\n\t\"76561197960265950\"\n\t{\n\t\t\"MostRecent\"\t\t\"1\"\n\t}\n}\n",
+        )
+        .unwrap();
+
+        assert_eq!(find_local_config(&root).unwrap().account_id, "222");
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn errors_when_there_is_no_account_at_all() {
+        let root = tmp_root("none");
+        let err = find_local_config(&root).unwrap_err();
+        assert!(err.starts_with("no-steam-account"), "got {}", err);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn writing_backs_up_and_replaces_the_file() {
+        let root = tmp_root("write");
+        make_account(&root, "419704515", &sample(""));
+        let config = find_local_config(&root).unwrap();
+
+        write_launch_options(&config, "221100", "/tmp/dzl-wrap.sh %command%").unwrap();
+
+        let written = fs::read_to_string(&config.path).unwrap();
+        assert_eq!(
+            read_launch_options(&written, "221100").as_deref(),
+            Some("/tmp/dzl-wrap.sh %command%")
+        );
+
+        let backup = config.path.with_extension("vdf.dzl.bak");
+        let saved = fs::read_to_string(&backup).unwrap();
+        assert_eq!(
+            read_launch_options(&saved, "221100"),
+            None,
+            "backup is the original"
+        );
+
+        fs::remove_dir_all(&root).unwrap();
+    }
 }
+

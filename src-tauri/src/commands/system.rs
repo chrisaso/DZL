@@ -41,6 +41,15 @@ pub(crate) fn dayz_dir(steam_path: &str) -> std::path::PathBuf {
     std::path::Path::new(steam_path).join("common/DayZ")
 }
 
+/// Steam's root directory, the parent of a `steamapps` path. `userdata` and
+/// `config` live here.
+pub(crate) fn steam_root(steam_path: &str) -> std::path::PathBuf {
+    std::path::Path::new(steam_path)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from(steam_path))
+}
+
 /// The workshop content directory for DayZ inside a `steamapps` path.
 pub(crate) fn workshop_dir(steam_path: &str) -> std::path::PathBuf {
     std::path::Path::new(steam_path).join(format!("workshop/content/{}", DAYZ_APP_ID))
