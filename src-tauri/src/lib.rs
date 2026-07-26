@@ -1,4 +1,5 @@
 mod commands;
+mod steam_vdf;
 mod tray;
 #[cfg(target_os = "linux")]
 mod tray_sni;
