@@ -70,12 +70,25 @@ subscription put it there, and whether its symlink is intact.*
   field itself
 - Full launch-option editor (21 DayZ parameters) plus free-form arguments
 
+**Wrappers**
+- gamescope and GameMode configured in the launcher: resolution, refresh rate,
+  fullscreen, borderless or windowed, force grab cursor, plus free-form
+  gamescope arguments and environment variables
+- Set up once, by pointing Steam's launch options for DayZ at a script the
+  launcher generates. Every change after that applies on the next launch with no
+  Steam restart
+- Launch options already set in Steam are imported, kept as a backup, and put
+  back if you remove the hook
+- Because the hook lives in Steam's launch options, launching DayZ from Steam
+  itself picks up the same settings
+
 ## Requirements
 
 - Steam with DayZ installed
 - `steamcmd` for automatic mod downloads
 - `vm.max_map_count` ≥ 1048576 (the launcher offers to set it)
 - Optional: `geoiplookup` or `whois` for server country lookup
+- Optional: `gamescope` and `gamemode` for the Wrappers settings
 
 `steamcmd` is packaged inconsistently: it is `steamcmd` from the AUR on Arch,
 `steamcmd` in Debian's `non-free` and Ubuntu's `multiverse`, and not packaged at

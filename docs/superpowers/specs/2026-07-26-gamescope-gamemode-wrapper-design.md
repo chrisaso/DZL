@@ -74,9 +74,14 @@ replaces the `LaunchOptions` line, inserts one into the existing app block, or
 inserts the whole app block when DayZ has never been launched on that account.
 Everything else in the file comes out byte for byte identical.
 
-Account selection reads `MostRecent` from `~/.steam/steam/config/loginusers.vdf`,
-falling back to the newest `localconfig.vdf` mtime. Settings displays which
-account was hooked so a multi-account user can confirm it went to the right one.
+Account selection takes the only `userdata/<id>` directory holding a
+`config/localconfig.vdf` when there is one, then the account marked
+`MostRecent "1"` in `~/.steam/steam/config/loginusers.vdf`, then the newest
+`localconfig.vdf` by mtime. `MostRecent` is last in usefulness rather than first
+because current Steam does not write that key at all: the reference machine's
+`loginusers.vdf` holds only `AccountName`, `Timestamp` and similar. Settings
+displays which account was hooked so a multi-account user can confirm it went to
+the right one.
 
 ### The wrapper script (frequent, free)
 
