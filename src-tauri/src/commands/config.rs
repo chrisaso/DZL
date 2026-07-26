@@ -239,7 +239,7 @@ pub(crate) fn read_config(app: &tauri::AppHandle) -> AppConfig {
     config
 }
 
-fn write_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
+pub(crate) fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
     let store = app.store(STORE_PATH).map_err(|e| e.to_string())?;
     store.set(
         CONFIG_KEY,
@@ -257,7 +257,11 @@ pub fn get_config(app: tauri::AppHandle) -> AppConfig {
 pub fn set_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig, String> {
     let mut config = config;
     config.launch_options = merge_launch_options(&config.launch_options);
-    write_config(&app, &config)?;
+    save_config(&app, &config)?;
+    // Keep the wrapper script in step with the settings that describe it. Best
+    // effort on purpose: saving a setting must not fail because the script
+    // could not be written, and the Wrappers section reports the state anyway.
+    let _ = crate::commands::wrapper::write_script(&app, &config);
     Ok(config)
 }
 
@@ -265,20 +269,20 @@ pub fn set_config(app: tauri::AppHandle, config: AppConfig) -> Result<AppConfig,
 pub fn set_steam_path(app: tauri::AppHandle, steam_path: String) -> Result<(), String> {
     let mut config = read_config(&app);
     config.steam_path = Some(steam_path);
-    write_config(&app, &config)
+    save_config(&app, &config)
 }
 
 #[tauri::command]
 pub fn set_player_name(app: tauri::AppHandle, player_name: String) -> Result<(), String> {
     let mut config = read_config(&app);
     config.player_name = Some(player_name);
-    write_config(&app, &config)
+    save_config(&app, &config)
 }
 
 #[tauri::command]
 pub fn reset_config(app: tauri::AppHandle) -> Result<AppConfig, String> {
     let config = AppConfig::default();
-    write_config(&app, &config)?;
+    save_config(&app, &config)?;
     Ok(config)
 }
 

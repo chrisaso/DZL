@@ -225,6 +225,10 @@ pub struct EnvironmentReport {
     pub steam_running: bool,
     pub dayz_running: bool,
     pub geo_lookup_available: bool,
+    /// gamescope and GameMode drive the Wrappers settings, which are hidden
+    /// rather than offered when the binaries are absent.
+    pub gamescope_installed: bool,
+    pub gamemode_installed: bool,
 }
 
 /// The exact shell command a user can run themselves if they would rather not
@@ -272,6 +276,8 @@ pub fn check_environment(app: tauri::AppHandle) -> EnvironmentReport {
         steam_running: steam_running(),
         dayz_running: dayz_running(),
         geo_lookup_available: binary_exists("geoiplookup") || binary_exists("whois"),
+        gamescope_installed: binary_exists("gamescope"),
+        gamemode_installed: binary_exists("gamemoderun"),
     }
 }
 
