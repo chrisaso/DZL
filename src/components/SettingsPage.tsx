@@ -17,6 +17,8 @@ import {
   Spinner,
   TextInput,
 } from "./ui";
+import { WrapperSettings } from "./WrapperSettings";
+import { wrapperTokensIn } from "../utils/wrapperArgs";
 
 function Section({
   title,
@@ -103,7 +105,7 @@ function SetupSummary({ issues }: { issues: SetupIssue[] }) {
   );
 }
 
-function StatusRow({
+export function StatusRow({
   label,
   ok,
   value,
@@ -433,6 +435,16 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
               }
             />
           </Field>
+
+          {wrapperTokensIn(customArgs).length > 0 && (
+            <Banner tone="warn" title="Those are wrapper commands">
+              {wrapperTokensIn(customArgs).join(", ")} run <em>around</em> the
+              game rather than being passed to it, so DayZ receives them as
+              ordinary arguments and ignores them. Set them up in the Wrappers
+              section below instead; MangoHud goes in its environment rows as
+              MANGOHUD=1.
+            </Banner>
+          )}
           <div className="flex justify-end">
             <Button
               variant="secondary"
@@ -443,6 +455,13 @@ export function SettingsPage({ configState }: { configState: UseConfig }) {
               Save arguments
             </Button>
           </div>
+        </Section>
+
+        <Section
+          title="Wrappers"
+          description="gamescope and GameMode, run around the game."
+        >
+          <WrapperSettings config={config} save={save} reload={reload} />
         </Section>
       </div>
     </div>

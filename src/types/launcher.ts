@@ -8,6 +8,37 @@ export interface LaunchOption {
   takesValue: boolean;
 }
 
+export type DisplayMode = "fullscreen" | "borderless" | "windowed";
+
+export interface WrapperConfig {
+  gamemode: boolean;
+  gamescope: boolean;
+  width: number | null;
+  height: number | null;
+  refresh: number | null;
+  displayMode: DisplayMode;
+  forceGrabCursor: boolean;
+  extraArgs: string;
+  /** `KEY=value` entries exported before the wrappers run. */
+  env: string[];
+  previousLaunchOptions: string | null;
+}
+
+export type HookState = "notInstalled" | "installed" | "changed" | "unreadable";
+
+export interface WrapperStatus {
+  hook: HookState;
+  launchOptions: string | null;
+  scriptPath: string;
+  expectedHook: string;
+  preview: string;
+  accountId: string | null;
+  steamRunning: boolean;
+  gamescopeInstalled: boolean;
+  gamescopeVersion: string | null;
+  gamemodeInstalled: boolean;
+}
+
 export interface AppConfig {
   steamPath: string | null;
   playerName: string | null;
@@ -18,6 +49,7 @@ export interface AppConfig {
   hideToTrayOnLaunch: boolean;
   launchOptions: LaunchOption[];
   customArgs: string[];
+  wrapper: WrapperConfig;
   setupComplete: boolean;
 }
 
@@ -36,6 +68,8 @@ export interface EnvironmentReport {
   steamRunning: boolean;
   dayzRunning: boolean;
   geoLookupAvailable: boolean;
+  gamescopeInstalled: boolean;
+  gamemodeInstalled: boolean;
 }
 
 export interface LoginStatus {
@@ -104,6 +138,8 @@ export interface JoinRequirements {
   maxMapCountOk: boolean;
   /** Whether Steam is up, so the UI knows to ask for approval first. */
   steamRunning: boolean;
+  /** False when wrapper settings are on but Steam no longer runs our script. */
+  wrapperHookOk: boolean;
 }
 
 export interface JoinRequest {

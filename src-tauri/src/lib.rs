@@ -1,4 +1,5 @@
 mod commands;
+mod steam_vdf;
 mod tray;
 #[cfg(target_os = "linux")]
 mod tray_sni;
@@ -51,6 +52,9 @@ pub fn run() {
             commands::mods::remove_all_links,
             commands::mods::relink_all_mods,
             commands::mods::update_mods,
+            commands::wrapper::get_wrapper_status,
+            commands::wrapper::install_wrapper_hook,
+            commands::wrapper::remove_wrapper_hook,
             commands::updates::check_mod_updates,
             commands::a2s::query_servers,
         ])
