@@ -58,20 +58,40 @@ function SortArrow({
   );
 }
 
-function PlayersCell({
+/**
+ * Player count, preferring the live A2S answer over the master-list record so
+ * the count and the queue beside it describe the same moment. A queue only
+ * appears once someone is actually waiting.
+ */
+export function PlayersCell({
   players,
   maxPlayers,
+  result,
 }: {
   players: number;
   maxPlayers: number;
+  result: QueryResult | undefined;
 }) {
-  const pct = maxPlayers > 0 ? players / maxPlayers : 0;
+  const live = result?.online ? result : undefined;
+  const count = live?.players ?? players;
+  const max = live?.maxPlayers ?? maxPlayers;
+  const queue = live?.queue ?? 0;
+
+  const pct = max > 0 ? count / max : 0;
   const colorClass =
     pct >= 1 ? "text-accent" : pct >= 0.8 ? "text-warn" : "text-secondary";
   return (
     <span className="font-mono tabular-nums">
-      <span className={colorClass}>{players}</span>
-      <span className="text-muted">/{maxPlayers}</span>
+      <span className={colorClass}>{count}</span>
+      <span className="text-muted">/{max}</span>
+      {queue > 0 && (
+        <span
+          className="ml-1.5 text-warn"
+          title={`${queue} waiting in the login queue`}
+        >
+          +{queue}
+        </span>
+      )}
     </span>
   );
 }
@@ -256,6 +276,7 @@ export function ServerTable({
                   <PlayersCell
                     players={server.players}
                     maxPlayers={server.maxPlayers}
+                    result={queryResults.get(id)}
                   />
                 </td>
 

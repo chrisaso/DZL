@@ -31,10 +31,11 @@ subscription put it there, and whether its symlink is intact.*
   count, 1PP/3PP, BattlEye, VAC and password
 - All / Saved / Recently played views; recently played servers that have gone
   offline are still listed
-- Live ping and player counts queried straight from each server's query port
-  (A2S), for the rows currently on screen
-- Detail panel with per-mod install state, live player count, host country and
-  a BattleMetrics link
+- Live ping, player counts and login queue queried straight from each server's
+  query port (A2S), for the rows currently on screen. A full server shows how
+  many people are waiting to get in
+- Detail panel with per-mod install state, live player count and queue, host
+  country and a BattleMetrics link
 
 **Joining**
 - Preflight that tells you exactly what is missing before anything happens
