@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerStore } from "../store/serverStore";
 import { useFilters } from "../hooks/useFilters";
+import { useLiveDataReady } from "../hooks/useLiveDataReady";
 import { Sidebar } from "../components/Sidebar";
-import { ServerTable } from "../components/ServerTable";
+import {
+  ServerTable,
+  COLUMN_WIDTHS,
+  skeletonRowCount,
+} from "../components/ServerTable";
 import { ServerDetail } from "../components/ServerDetail";
 import { Button, Icon } from "../components/ui";
 import type { HistoryEntry, QueryResult } from "../types/launcher";
@@ -12,50 +17,80 @@ import { serverId, timeAgo } from "../utils/format";
 function SkeletonRow() {
   return (
     <tr>
-      <td className="w-9 px-2 py-2.5 border-b border-trim/40">
+      <td className="px-2 py-2.5 border-b border-trim/40">
         <div className="skeleton w-5 h-5 mx-auto" />
       </td>
       <td className="px-3 py-2.5 border-b border-trim/40">
         <div className="skeleton h-3.5 w-3/4 mb-1.5" />
         <div className="skeleton h-2.5 w-1/3" />
       </td>
-      <td className="w-36 px-3 py-2.5 border-b border-trim/40">
+      <td className="px-3 py-2.5 border-b border-trim/40">
         <div className="skeleton h-3.5 w-20" />
       </td>
-      <td className="w-20 px-3 py-2.5 border-b border-trim/40">
-        <div className="skeleton h-3.5 w-12 ml-auto" />
+      <td className="px-3 py-2.5 border-b border-trim/40">
+        <div className="skeleton h-3.5 w-16 ml-auto" />
       </td>
-      <td className="w-16 px-3 py-2.5 border-b border-trim/40">
+      <td className="px-3 py-2.5 border-b border-trim/40">
         <div className="skeleton h-3.5 w-10 ml-auto" />
       </td>
-      <td className="w-16 px-3 py-2.5 border-b border-trim/40">
+      <td className="px-3 py-2.5 border-b border-trim/40">
         <div className="skeleton h-3.5 w-6 ml-auto" />
       </td>
-      <td className="w-20 px-2 py-2.5 border-b border-trim/40" />
+      <td className="px-3 py-2.5 border-b border-trim/40">
+        <div className="skeleton h-3.5 w-8 ml-auto" />
+      </td>
+      <td className="px-2 py-2.5 border-b border-trim/40" />
     </tr>
   );
 }
 
+/**
+ * Placeholder rows in the shape of the real table. It renders as many rows as
+ * the space it is given, because a fixed count leaves a dead band at the
+ * bottom of a tall window; the overflow is clipped rather than scrollable so
+ * the last row is cut off by the edge instead of stopping short of it.
+ */
 function LoadingTable() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [rows, setRows] = useState(() => skeletonRowCount(0));
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setRows(skeletonRowCount(el.clientHeight));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="flex-1 overflow-y-auto min-h-0">
-      <table className="w-full border-separate border-spacing-0 text-sm">
+    <div ref={ref} className="flex-1 overflow-hidden min-h-0">
+      <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
+        <colgroup>
+          {COLUMN_WIDTHS.map((width, i) => (
+            <col key={i} style={width ? { width } : undefined} />
+          ))}
+        </colgroup>
         <thead className="sticky top-0 z-10 bg-surface">
           <tr>
-            <th className="w-9 px-2 py-2.5 border-b border-trim" />
-            {["Name", "Map", "Players", "Time", "Mods"].map((h) => (
+            <th className="px-2 py-2.5 border-b border-trim" />
+            {["Name", "Map", "Players", "Time", "Mods", "Ping"].map((h, i) => (
               <th
                 key={h}
-                className="px-3 py-2.5 font-medium text-xs text-secondary uppercase tracking-wider border-b border-trim text-left"
+                className={`px-3 py-2.5 font-medium text-xs text-secondary uppercase tracking-wider border-b border-trim ${
+                  i < 2 ? "text-left" : "text-right"
+                }`}
               >
                 {h}
               </th>
             ))}
-            <th className="w-20 px-2 py-2.5 border-b border-trim" />
+            <th className="px-2 py-2.5 border-b border-trim" />
           </tr>
         </thead>
         <tbody>
-          {Array.from({ length: 18 }).map((_, i) => (
+          {Array.from({ length: rows }).map((_, i) => (
             <SkeletonRow key={i} />
           ))}
         </tbody>
@@ -125,6 +160,7 @@ export function ServerList({
   onForgetHistory,
   onJoin,
   queryResults,
+  querying,
   onVisibleChange,
   onRefreshPing,
   installedMods,
@@ -135,6 +171,8 @@ export function ServerList({
   onForgetHistory: (id: string) => void;
   onJoin: (server: Server) => void;
   queryResults: Map<string, QueryResult>;
+  /** Whether a live query batch is in flight. */
+  querying: boolean;
   onVisibleChange: (servers: Server[]) => void;
   /** Re-queries one server's live data, ignoring the ping cache. */
   onRefreshPing: (ip: string, port: number) => Promise<void>;
@@ -161,6 +199,15 @@ export function ServerList({
   useEffect(() => {
     fetchServers();
   }, [fetchServers]);
+
+  // Ping and queue land a beat after the master list. Keep the skeleton up
+  // until that first batch settles so the rows appear complete rather than
+  // filling in two columns a second later.
+  const liveReady = useLiveDataReady(
+    !loading && !error && filtered.length > 0,
+    querying,
+    queryResults.size > 0,
+  );
 
   const selectedServer =
     selectedId != null
@@ -210,7 +257,15 @@ export function ServerList({
         {loading && <LoadingTable />}
         {!loading && error && <ErrorState error={error} onRetry={fetchServers} />}
         {!loading && !error && (
-          <>
+          // The table stays mounted behind the skeleton: its virtualizer is what
+          // decides which rows to query, so unmounting it would leave the first
+          // batch unfired and the skeleton up until the deadline.
+          <div className="relative flex flex-col flex-1 min-h-0">
+            {!liveReady && (
+              <div className="absolute inset-0 z-20 bg-base flex flex-col">
+                <LoadingTable />
+              </div>
+            )}
             <ServerTable
               servers={filtered}
               selectedId={selectedId}
@@ -226,7 +281,7 @@ export function ServerList({
               onVisibleChange={onVisibleChange}
             />
             <OfflineHistory entries={offlineHistory} onForget={onForgetHistory} />
-          </>
+          </div>
         )}
 
         {selectedServer && (

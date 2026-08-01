@@ -109,6 +109,35 @@ function PingCell({ result }: { result: QueryResult | undefined }) {
   );
 }
 
+/** Row height the virtualizer works to, and the skeleton mirrors. */
+export const ROW_HEIGHT = 50;
+
+/** Fallback until the skeleton has measured the space it has to fill. */
+const MIN_SKELETON_ROWS = 18;
+
+/**
+ * Column widths shared by the real table and the loading skeleton, so the two
+ * line up and the list does not jump when the skeleton clears. `undefined` is
+ * the flexible name column.
+ */
+export const COLUMN_WIDTHS: (number | undefined)[] = [
+  36,
+  undefined,
+  132,
+  // Wide enough for "122/122 +17" so a queue cannot reach the time
+  120,
+  62,
+  56,
+  58,
+  96,
+];
+
+/** How many skeleton rows it takes to fill `height` with no gap at the bottom. */
+export function skeletonRowCount(height: number, rowHeight = ROW_HEIGHT): number {
+  if (!Number.isFinite(height) || height <= 0) return MIN_SKELETON_ROWS;
+  return Math.max(MIN_SKELETON_ROWS, Math.ceil(height / rowHeight));
+}
+
 const SORTABLE_COLS: { key: SortKey; label: string; cls: string }[] = [
   { key: "name", label: "Name", cls: "text-left" },
   { key: "map", label: "Map", cls: "text-left" },
@@ -149,7 +178,7 @@ export function ServerTable({
   const virtualizer = useVirtualizer({
     count: servers.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 50,
+    estimateSize: () => ROW_HEIGHT,
     overscan: 8,
   });
 
@@ -177,14 +206,9 @@ export function ServerTable({
       <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
         {/* Fixed column widths so the header and virtual rows stay aligned */}
         <colgroup>
-          <col style={{ width: 36 }} />
-          <col />
-          <col style={{ width: 132 }} />
-          <col style={{ width: 78 }} />
-          <col style={{ width: 62 }} />
-          <col style={{ width: 56 }} />
-          <col style={{ width: 58 }} />
-          <col style={{ width: 96 }} />
+          {COLUMN_WIDTHS.map((width, i) => (
+            <col key={i} style={width ? { width } : undefined} />
+          ))}
         </colgroup>
 
         <thead className="sticky top-0 z-10 bg-surface">
