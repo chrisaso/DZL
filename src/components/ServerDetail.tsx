@@ -72,6 +72,7 @@ export function ServerDetail({
 
   const players = queryResult?.online ? queryResult.players ?? server.players : server.players;
   const maxPlayers = queryResult?.maxPlayers ?? server.maxPlayers;
+  const queue = queryResult?.online ? queryResult.queue ?? 0 : 0;
   const playerPct = maxPlayers > 0 ? Math.min(1, players / maxPlayers) : 0;
   const barColor =
     playerPct >= 1 ? "bg-accent" : playerPct >= 0.8 ? "bg-warn" : "bg-good";
@@ -169,6 +170,9 @@ export function ServerDetail({
               </span>
               <span className="text-xs font-mono text-secondary">
                 {players} / {maxPlayers}
+                {queue > 0 && (
+                  <span className="ml-1.5 text-warn">+{queue} waiting</span>
+                )}
               </span>
             </div>
             <div className="h-1.5 bg-elevated rounded-full overflow-hidden">

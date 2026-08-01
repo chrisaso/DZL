@@ -172,6 +172,8 @@ export interface QueryResult {
   pingMs: number | null;
   players: number | null;
   maxPlayers: number | null;
+  /** DayZ login queue length, when the server advertises one. */
+  queue: number | null;
   name: string | null;
   map: string | null;
   version: string | null;
