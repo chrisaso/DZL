@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 
-import { PlayersCell } from "./ServerTable";
+import { PlayersCell, skeletonRowCount, ROW_HEIGHT } from "./ServerTable";
 import type { QueryResult } from "../types/launcher";
 
 function queryResult(overrides: Partial<QueryResult> = {}): QueryResult {
@@ -19,6 +19,25 @@ function queryResult(overrides: Partial<QueryResult> = {}): QueryResult {
     ...overrides,
   };
 }
+
+describe("skeletonRowCount", () => {
+  it("fills the available height exactly when it divides evenly", () => {
+    expect(skeletonRowCount(ROW_HEIGHT * 20)).toBe(20);
+  });
+
+  it("covers a partial row rather than leaving a gap at the bottom", () => {
+    expect(skeletonRowCount(ROW_HEIGHT * 20 + 1)).toBe(21);
+  });
+
+  it("fills a tall window", () => {
+    expect(skeletonRowCount(2000)).toBe(40);
+  });
+
+  it("falls back to a sensible count before the height is measured", () => {
+    expect(skeletonRowCount(0)).toBeGreaterThan(0);
+    expect(skeletonRowCount(Number.NaN)).toBeGreaterThan(0);
+  });
+});
 
 describe("PlayersCell", () => {
   it("shows the queue length when players are waiting to get in", () => {
