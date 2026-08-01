@@ -27,7 +27,7 @@ export function Launcher() {
 
   const { favorites, toggle } = useFavorites();
   const { history, add: recordHistory, remove: forgetHistory } = useHistory();
-  const { results, query } = useServerQuery();
+  const { results, query, querying } = useServerQuery();
   const { refreshing, forceRefresh } = useServerStore();
 
   const [installedMods, setInstalledMods] = useState<Set<string>>(new Set());
@@ -144,6 +144,7 @@ export function Launcher() {
           onForgetHistory={forgetHistory}
           onJoin={join.startJoin}
           queryResults={results}
+          querying={querying}
           onVisibleChange={handleVisibleChange}
           onRefreshPing={handleRefreshPing}
           installedMods={installedMods}

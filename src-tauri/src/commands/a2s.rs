@@ -13,6 +13,13 @@ const RESPONSE_CHALLENGE: u8 = 0x41;
 const MAX_CONCURRENT_QUERIES: usize = 64;
 const DEFAULT_TIMEOUT_MS: u64 = 1500;
 
+/// Extra-data flags. The fields they mark are positional, not tagged, so
+/// reaching the keywords means stepping over whichever ones precede it.
+const EDF_GAME_PORT: u8 = 0x80;
+const EDF_STEAM_ID: u8 = 0x10;
+const EDF_SPECTATOR: u8 = 0x40;
+const EDF_KEYWORDS: u8 = 0x20;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryTarget {
@@ -29,6 +36,7 @@ pub struct QueryResult {
     pub ping_ms: Option<u32>,
     pub players: Option<u32>,
     pub max_players: Option<u32>,
+    pub queue: Option<u32>,
     pub name: Option<String>,
     pub map: Option<String>,
     pub version: Option<String>,
@@ -43,6 +51,7 @@ impl QueryResult {
             ping_ms: None,
             players: None,
             max_players: None,
+            queue: None,
             name: None,
             map: None,
             version: None,
@@ -57,6 +66,7 @@ pub(crate) struct A2sInfo {
     pub players: u32,
     pub max_players: u32,
     pub version: String,
+    pub queue: Option<u32>,
 }
 
 /// Little-endian cursor that yields `None` instead of panicking on truncated
@@ -95,6 +105,37 @@ impl<'a> Reader<'a> {
     }
 }
 
+/// Reads the keywords tag list out of the optional extra-data block.
+///
+/// Everything here is best-effort: a server that sends no extra data, omits the
+/// keywords flag, or truncates the block costs us the tags and nothing else.
+fn read_keywords(r: &mut Reader) -> Option<String> {
+    let flags = r.u8()?;
+    if flags & EDF_GAME_PORT != 0 {
+        r.u16()?;
+    }
+    if flags & EDF_STEAM_ID != 0 {
+        r.take(8)?;
+    }
+    if flags & EDF_SPECTATOR != 0 {
+        r.u16()?;
+        r.cstring()?;
+    }
+    if flags & EDF_KEYWORDS == 0 {
+        return None;
+    }
+    r.cstring()
+}
+
+/// DayZ publishes the login queue length among its keywords as `lqs<n>`. It is
+/// a Bohemia convention rather than anything Source guarantees, so anything
+/// that does not parse cleanly is reported as unknown rather than as zero.
+fn parse_queue_tag(keywords: &str) -> Option<u32> {
+    keywords
+        .split(',')
+        .find_map(|tag| tag.strip_prefix("lqs")?.parse().ok())
+}
+
 /// Parses an S2A_INFO response body. Returns `None` for anything that is not a
 /// well-formed info reply.
 pub(crate) fn parse_a2s_info(packet: &[u8]) -> Option<A2sInfo> {
@@ -121,6 +162,7 @@ pub(crate) fn parse_a2s_info(packet: &[u8]) -> Option<A2sInfo> {
     let _visibility = r.u8()?;
     let _vac = r.u8()?;
     let version = r.cstring()?;
+    let queue = read_keywords(&mut r).as_deref().and_then(parse_queue_tag);
 
     Some(A2sInfo {
         name,
@@ -128,6 +170,7 @@ pub(crate) fn parse_a2s_info(packet: &[u8]) -> Option<A2sInfo> {
         players,
         max_players,
         version,
+        queue,
     })
 }
 
@@ -185,6 +228,7 @@ async fn query_one(target: &QueryTarget, timeout: std::time::Duration) -> QueryR
             ping_ms: Some(started.elapsed().as_millis().min(u32::MAX as u128) as u32),
             players: Some(info.players),
             max_players: Some(info.max_players),
+            queue: info.queue,
             name: Some(info.name),
             map: Some(info.map),
             version: Some(info.version),
@@ -244,6 +288,19 @@ mod tests {
         p
     }
 
+    /// A DayZ reply as the servers actually send it: game port, Steam id,
+    /// keywords and game id, in the order the extra-data flags demand.
+    fn dayz_packet(keywords: &str) -> Vec<u8> {
+        let mut p = info_packet();
+        p.push(0xB1); // port | steam id | keywords | game id
+        p.extend_from_slice(&2302u16.to_le_bytes());
+        p.extend_from_slice(&90290043622796314u64.to_le_bytes());
+        p.extend_from_slice(keywords.as_bytes());
+        p.push(0);
+        p.extend_from_slice(&221100u64.to_le_bytes());
+        p
+    }
+
     #[test]
     fn parses_a_well_formed_info_response() {
         let info = parse_a2s_info(&info_packet()).unwrap();
@@ -252,6 +309,100 @@ mod tests {
         assert_eq!(info.players, 42);
         assert_eq!(info.max_players, 60);
         assert_eq!(info.version, "1.28.159940");
+    }
+
+    /// A reply captured off the wire from a full public server. The synthetic
+    /// packets above encode our own reading of the layout; this one holds that
+    /// reading against what DayZ actually sends.
+    const CAPTURED_REPLY: &str = "ffffffff49115355455441205255207c20335050207c20505650204d4f5245204c4f4f54207c\
+        20574950452031382e303700636865726e61727573706c7573006461797a0000000078780064\
+        770001312e32392e31363334353100b1fe080c54877c50c64001626174746c6579652c657874\
+        65726e616c2c70726976486976652c73686172643132334142432c6c717332382c65746d322e\
+        3030303030302c656e746d32342e3030303030302c6d6f642c31363a333000ac5f0300000000\
+        00";
+
+    fn decode_hex(hex: &str) -> Vec<u8> {
+        let digits: Vec<char> = hex.chars().filter(|c| !c.is_whitespace()).collect();
+        digits
+            .chunks(2)
+            .map(|pair| u8::from_str_radix(&pair.iter().collect::<String>(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn parses_a_reply_captured_from_a_live_server() {
+        let info = parse_a2s_info(&decode_hex(CAPTURED_REPLY)).unwrap();
+        assert_eq!(info.name, "SUETA RU | 3PP | PVP MORE LOOT | WIPE 18.07");
+        assert_eq!(info.map, "chernarusplus");
+        assert_eq!(info.version, "1.29.163451");
+        assert_eq!(info.players, 120);
+        assert_eq!(info.max_players, 120);
+        assert_eq!(info.queue, Some(28));
+    }
+
+    #[test]
+    fn reads_the_login_queue_from_the_keywords_tags() {
+        let packet = dayz_packet("battleye,external,privHive,lqs17,etm4.000000,mod,08:03");
+        assert_eq!(parse_a2s_info(&packet).unwrap().queue, Some(17));
+    }
+
+    #[test]
+    fn steps_over_the_full_width_of_each_preceding_extra_field() {
+        // A Steam id carrying zero bytes. Misjudge its width and the keywords
+        // read starts inside it and terminates on the first of those zeros,
+        // which silently costs us the tags.
+        let mut p = info_packet();
+        p.push(0xB1);
+        p.extend_from_slice(&2302u16.to_le_bytes());
+        p.extend_from_slice(&0x0000_00FF_FFFF_FFFFu64.to_le_bytes());
+        p.extend_from_slice(b"battleye,lqs9,mod\0");
+        p.extend_from_slice(&221100u64.to_le_bytes());
+
+        assert_eq!(parse_a2s_info(&p).unwrap().queue, Some(9));
+    }
+
+    #[test]
+    fn an_empty_queue_reads_as_zero_rather_than_unknown() {
+        let packet = dayz_packet("battleye,external,lqs0,etm1.000000,mod,14:02");
+        assert_eq!(parse_a2s_info(&packet).unwrap().queue, Some(0));
+    }
+
+    #[test]
+    fn queue_is_unknown_when_the_tags_carry_no_lqs() {
+        let packet = dayz_packet("battleye,external,etm4.000000,mod");
+        assert_eq!(parse_a2s_info(&packet).unwrap().queue, None);
+    }
+
+    #[test]
+    fn queue_is_unknown_when_the_server_sends_no_extra_data() {
+        assert_eq!(parse_a2s_info(&info_packet()).unwrap().queue, None);
+    }
+
+    #[test]
+    fn queue_is_unknown_when_the_tags_are_absent_from_the_flags() {
+        // Port and game id present, keywords bit clear.
+        let mut p = info_packet();
+        p.push(0x81);
+        p.extend_from_slice(&2302u16.to_le_bytes());
+        p.extend_from_slice(&221100u64.to_le_bytes());
+        assert_eq!(parse_a2s_info(&p).unwrap().queue, None);
+    }
+
+    #[test]
+    fn a_malformed_lqs_value_leaves_the_queue_unknown() {
+        let packet = dayz_packet("battleye,lqsx,etm4.000000");
+        assert_eq!(parse_a2s_info(&packet).unwrap().queue, None);
+    }
+
+    #[test]
+    fn truncated_extra_data_still_yields_the_base_info() {
+        let full = dayz_packet("battleye,lqs9,etm4.000000");
+        let base = info_packet().len();
+        for cut in base..full.len() {
+            let info = parse_a2s_info(&full[..cut])
+                .expect("a short extra-data block must not discard the reply");
+            assert_eq!(info.players, 42);
+        }
     }
 
     #[test]
@@ -361,5 +512,35 @@ mod tests {
         assert_eq!(results[0].max_players, Some(60));
         assert_eq!(results[0].name.as_deref(), Some("Test Server"));
         assert!(results[0].ping_ms.is_some());
+    }
+
+    #[tokio::test]
+    async fn the_queue_reaches_the_query_result() {
+        let server = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let port = server.local_addr().unwrap().port();
+
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 1024];
+            let (_, peer) = server.recv_from(&mut buf).unwrap();
+            server
+                .send_to(&dayz_packet("battleye,external,lqs12,etm4.000000"), peer)
+                .unwrap();
+        });
+
+        let results = query_servers(
+            vec![QueryTarget {
+                ip: "127.0.0.1".into(),
+                port,
+            }],
+            Some(3000),
+        )
+        .await;
+
+        assert_eq!(results[0].queue, Some(12));
+    }
+
+    #[test]
+    fn an_offline_server_has_no_queue() {
+        assert_eq!(QueryResult::offline("192.0.2.1", 27016).queue, None);
     }
 }
