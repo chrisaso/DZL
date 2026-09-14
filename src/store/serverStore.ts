@@ -65,9 +65,9 @@ export const useServerStore = create<ServerStore>((set, get) => ({
   fetchServers: async () => {
     if (fetchInFlight) return;
     fetchInFlight = true;
-
+    
     const cached = readCache();
-
+    
     if (cached) {
       // Cache is fresh: single set, no background fetch.
       // A double-set (cache then network) caused a render where Zustand's
@@ -77,7 +77,7 @@ export const useServerStore = create<ServerStore>((set, get) => ({
       fetchInFlight = false;
       return;
     }
-
+    
     // No cache: full blocking load, single set after fetch.
     set({ loading: true, error: null });
     try {
@@ -99,7 +99,12 @@ export const useServerStore = create<ServerStore>((set, get) => ({
         // localStorage unavailable; proceed anyway
       }
     }
-    await get().fetchServers();
+    set({ refreshing: true });
+    try {
+      await get().fetchServers();
+    } finally {
+      set({ refreshing: false });
+    }
   },
   refreshServer: async (ip: string, port: number) => {
     try {
@@ -107,13 +112,13 @@ export const useServerStore = create<ServerStore>((set, get) => ({
       set((state) => ({
         servers: state.servers.map((s) =>
           s.endpoint.ip === ip && s.endpoint.port === port ? fresh : s,
-        ),
-      }));
-    } catch (e) {
-      console.warn(`[refreshServer] ${ip}:${port}:`, e);
-      // Leave existing data intact: no crash, no fallback fetch
-    }
-  },
+      ),
+    }));
+  } catch (e) {
+    console.warn(`[refreshServer] ${ip}:${port}:`, e);
+    // Leave existing data intact: no crash, no fallback fetch
+  }
+},
 }));
 
 /** @internal Test-only. Resets the fetchInFlight guard between tests. */
