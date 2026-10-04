@@ -99,7 +99,12 @@ export const useServerStore = create<ServerStore>((set, get) => ({
         // localStorage unavailable; proceed anyway
       }
     }
-    await get().fetchServers();
+    set({ refreshing: true });
+    try {
+      await get().fetchServers();
+    } finally {
+      set({ refreshing: false });
+    }
   },
   refreshServer: async (ip: string, port: number) => {
     try {

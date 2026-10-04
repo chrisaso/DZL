@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { JoinModal } from "../components/JoinModal";
 import { ManualLaunchModal } from "../components/ManualLaunchModal";
 import { ModsPage } from "../components/ModsPage";
@@ -13,7 +13,7 @@ import { useJoinServer } from "../hooks/useJoinServer";
 import { useModUpdates } from "../hooks/useModUpdates";
 import { useServerQuery } from "../hooks/useServerQuery";
 import { useServerStore } from "../store/serverStore";
-import type { ModRef } from "../types/launcher";
+import type { ModRef, QueryTarget } from "../types/launcher";
 import type { Server } from "../types/server";
 import { collectSetupIssues } from "../utils/setupIssues";
 import { ServerList } from "./ServerList";
@@ -57,13 +57,30 @@ export function Launcher() {
     },
   });
 
+  // Kept in sync with the rows on screen so the top-right Refresh can
+  // force-requery exactly those without waiting for the ping TTL to lapse.
+  const visibleTargetsRef = useRef<QueryTarget[]>([]);
+
   const handleVisibleChange = useCallback(
-    (servers: Server[]) =>
-      query(
-        servers.map((s) => ({ ip: s.endpoint.ip, port: s.endpoint.port })),
-      ),
+    (servers: Server[]) => {
+      const targets = servers.map((s) => ({
+        ip: s.endpoint.ip,
+        port: s.endpoint.port,
+      }));
+      visibleTargetsRef.current = targets;
+      query(targets);
+    },
     [query],
   );
+
+  // The visible ping and player columns prefer live A2S data, which lives in
+  // a separate cache from the DZSA list, so both have to be refreshed.
+  const handleGlobalRefresh = useCallback(async () => {
+    await Promise.all([
+      forceRefresh(),
+      query(visibleTargetsRef.current, true),
+    ]);
+  }, [forceRefresh, query]);
 
   // `force` skips the ping cache; an explicit refresh should never hand back
   // the reading it took a minute ago.
@@ -87,7 +104,7 @@ export function Launcher() {
         issueCount={issues.length}
         modUpdateCount={modUpdates.outdated.length}
         refreshing={refreshing}
-        onRefresh={forceRefresh}
+        onRefresh={handleGlobalRefresh}
         onManualLaunch={() => setManualLaunch(true)}
       />
 
