@@ -167,3 +167,30 @@ describe("refreshServer", () => {
     expect(servers[1]).toStrictEqual(other);
   });
 });
+
+describe("forceRefresh", () => {
+  beforeEach(() => {
+    _resetFetchGuard();
+    useServerStore.setState({ servers: [], loading: false, refreshing: false, error: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useServerStore.setState({ servers: [], loading: false, refreshing: false, error: null });
+  });
+
+  test("sets refreshing while the fetch runs and clears it after", async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockReturnValue(new Promise((resolve) => (resolveFetch = resolve))),
+    );
+
+    const pending = useServerStore.getState().forceRefresh();
+    expect(useServerStore.getState().refreshing).toBe(true);
+
+    resolveFetch({ ok: false, status: 500 });
+    await pending;
+    expect(useServerStore.getState().refreshing).toBe(false);
+  });
+});
