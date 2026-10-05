@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useFilters } from "./useFilters";
+import { formatMap } from "../utils/format";
 import type { Server } from "../types/server";
 
 function makeServer(overrides: Partial<Server> & { name: string }): Server {
@@ -225,6 +226,17 @@ describe("useFilters: map", () => {
       expect.arrayContaining(["Old Build", "New Build"]),
     );
     expect(result.current.filtered).toHaveLength(2);
+  });
+
+  test("aliased maps keep their display label in the list", () => {
+    const servers = [
+      makeServer({ name: "One", map: "deerisle" }),
+      makeServer({ name: "Two", map: "deer_isle" }),
+    ];
+    const { result } = renderHook(() => useFilters(servers, new Set()));
+
+    expect(result.current.maps).toHaveLength(1);
+    expect(formatMap(result.current.maps[0])).toBe("Deer Isle");
   });
 
   test("the map list is sorted by display name, not by raw byte order", () => {
