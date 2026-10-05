@@ -1,6 +1,10 @@
 import { useState, useMemo, useRef } from "react";
 import type { Server } from "../types/server";
-import { formatMap, mapKey } from "../utils/format";
+import { formatMap, isKnownMap, mapKey } from "../utils/format";
+
+function capitals(text: string): number {
+  return text.replace(/[^A-Z]/g, "").length;
+}
 
 /** Which slice of the master list is on screen. */
 export type ServerView = "all" | "favorites" | "recent";
@@ -74,12 +78,26 @@ export function useFilters(
   // re-render before React has committed the setFilters update.
   const searchRef = useRef(DEFAULT_FILTERS.search);
 
+  // One entry per map. Known maps use their canonical key; custom maps keep
+  // the spelling with the most capitals, since "ChernarusPlusGloom" reads
+  // better than "chernarusplusgloom".
   const maps = useMemo(() => {
-    const keys = new Set<string>();
+    const byKey = new Map<string, string>();
     for (const s of servers) {
-      if (s.map) keys.add(mapKey(s.map));
+      if (!s.map) continue;
+      const key = mapKey(s.map);
+      if (isKnownMap(s.map)) {
+        byKey.set(key, key);
+        continue;
+      }
+      const current = byKey.get(key);
+      if (current === undefined || capitals(s.map) > capitals(current)) {
+        byKey.set(key, s.map);
+      }
     }
-    return [...keys].sort((a, b) => formatMap(a).localeCompare(formatMap(b)));
+    return [...byKey.values()].sort((a, b) =>
+      formatMap(a).localeCompare(formatMap(b)),
+    );
   }, [servers]);
 
   const versions = useMemo(
@@ -152,7 +170,8 @@ export function useFilters(
       result = result.filter((s) => s.name.toLowerCase().includes(q));
     }
     if (filters.map) {
-      result = result.filter((s) => mapKey(s.map) === filters.map);
+      const key = mapKey(filters.map);
+      result = result.filter((s) => mapKey(s.map) === key);
     }
     if (filters.version) {
       result = result.filter((s) => s.version === filters.version);

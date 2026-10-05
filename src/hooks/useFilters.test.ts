@@ -239,6 +239,20 @@ describe("useFilters: map", () => {
     expect(formatMap(result.current.maps[0])).toBe("Deer Isle");
   });
 
+  test("custom maps that differ only in case collapse to one entry", () => {
+    const servers = [
+      makeServer({ name: "Lower", map: "chernarusplusgloom" }),
+      makeServer({ name: "Mixed", map: "ChernarusPlusGloom" }),
+      makeServer({ name: "Other", map: "chernarus2035" }),
+    ];
+    const { result } = renderHook(() => useFilters(servers, new Set()));
+
+    expect(result.current.maps).toEqual(["chernarus2035", "ChernarusPlusGloom"]);
+
+    act(() => result.current.updateFilter("map", "ChernarusPlusGloom"));
+    expect(result.current.filtered.map((s) => s.name).sort()).toEqual(["Lower", "Mixed"]);
+  });
+
   test("the map list is sorted by display name, not by raw byte order", () => {
     // Raw "Zona" sorts before raw "alteria" under plain string comparison
     // ('Z' < 'a' in UTF-16), but "Alteria" belongs before "Zona" alphabetically.
