@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import type { Server } from "../types/server";
+import { formatMap, mapKey } from "../utils/format";
 
 /** Which slice of the master list is on screen. */
 export type ServerView = "all" | "favorites" | "recent";
@@ -73,10 +74,13 @@ export function useFilters(
   // re-render before React has committed the setFilters update.
   const searchRef = useRef(DEFAULT_FILTERS.search);
 
-  const maps = useMemo(
-    () => [...new Set(servers.map((s) => s.map))].filter(Boolean).sort(),
-    [servers],
-  );
+  const maps = useMemo(() => {
+    const keys = new Set<string>();
+    for (const s of servers) {
+      if (s.map) keys.add(mapKey(s.map));
+    }
+    return [...keys].sort((a, b) => formatMap(a).localeCompare(formatMap(b)));
+  }, [servers]);
 
   const versions = useMemo(
     () => [...new Set(servers.map((s) => s.version))].filter(Boolean).sort().reverse(),
@@ -148,7 +152,7 @@ export function useFilters(
       result = result.filter((s) => s.name.toLowerCase().includes(q));
     }
     if (filters.map) {
-      result = result.filter((s) => s.map === filters.map);
+      result = result.filter((s) => mapKey(s.map) === filters.map);
     }
     if (filters.version) {
       result = result.filter((s) => s.version === filters.version);
