@@ -1,7 +1,7 @@
 {
   "name": "dzl",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A GUI DayZ launcher for Linux",
   "license": "MIT",
   "repository": {
