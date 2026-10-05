@@ -199,3 +199,43 @@ describe("useFilters: search", () => {
     expect(result.current.filtered[0].name).toBe("Livonia Hardcore");
   });
 });
+
+describe("useFilters: map", () => {
+  test("maps alias to the same map (enoch/livonia) collapse to one entry", () => {
+    const servers = [
+      makeServer({ name: "Old Build", map: "enoch" }),
+      makeServer({ name: "New Build", map: "livonia" }),
+    ];
+    const { result } = renderHook(() => useFilters(servers, new Set()));
+
+    expect(result.current.maps).toEqual(["livonia"]);
+  });
+
+  test("selecting a map matches every raw spelling aliased to it", () => {
+    const servers = [
+      makeServer({ name: "Old Build", map: "enoch" }),
+      makeServer({ name: "New Build", map: "livonia" }),
+      makeServer({ name: "Elsewhere", map: "chernarusplus" }),
+    ];
+    const { result } = renderHook(() => useFilters(servers, new Set()));
+
+    act(() => result.current.updateFilter("map", "livonia"));
+
+    expect(result.current.filtered.map((s) => s.name)).toEqual(
+      expect.arrayContaining(["Old Build", "New Build"]),
+    );
+    expect(result.current.filtered).toHaveLength(2);
+  });
+
+  test("the map list is sorted by display name, not by raw byte order", () => {
+    // Raw "Zona" sorts before raw "alteria" under plain string comparison
+    // ('Z' < 'a' in UTF-16), but "Alteria" belongs before "Zona" alphabetically.
+    const servers = [
+      makeServer({ name: "Zona Server", map: "Zona" }),
+      makeServer({ name: "Alteria Server", map: "alteria" }),
+    ];
+    const { result } = renderHook(() => useFilters(servers, new Set()));
+
+    expect(result.current.maps).toEqual(["alteria", "Zona"]);
+  });
+});
