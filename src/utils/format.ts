@@ -20,6 +20,19 @@ export function formatMap(map: string): string {
     .join(" ");
 }
 
+/**
+ * Canonical identity for a raw map string. Two raw values that MAP_NAMES
+ * treats as the same map (e.g. "enoch" and "livonia") collapse to the first
+ * MAP_NAMES key for that map, so formatMap still finds its label; anything
+ * not in MAP_NAMES is returned unchanged, so unrelated custom maps are never
+ * merged.
+ */
+export function mapKey(map: string): string {
+  const known = MAP_NAMES[map.toLowerCase()];
+  if (!known) return map;
+  return Object.keys(MAP_NAMES).find((k) => MAP_NAMES[k] === known) ?? map;
+}
+
 export function serverId(server: Server): string {
   return `${server.endpoint.ip}:${server.endpoint.port}`;
 }
